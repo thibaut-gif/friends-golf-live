@@ -18,6 +18,14 @@ const state = {
   scoringMode: "marker",
   wizardOpen: false,
   wizardStep: 0,
+  savingSetup: false,
+  saveStatus: null,
+  supabaseIds: {
+    competitionId: null,
+    playerIds: [],
+    roundIds: [],
+    groupIds: [],
+  },
   setup: {
     competitionType: "friends",
     competitionName: "Friends Invitational 2026",
@@ -25,6 +33,7 @@ const state = {
     endDate: "2026-06-18",
     playerCount: 4,
     roundCount: 1,
+    groupSize: 3,
     courseName: "Golf de Chantilly - Vineuil",
     tees: "Jaunes",
     gameFormula: "stableford-net",
@@ -43,8 +52,24 @@ const state = {
     { courseName: "Golf de Chantilly - Vineuil", tees: "Jaunes", selectedCourseId: "chantilly-vineuil" },
   ],
   groups: [
-    { id: "g1", name: "Partie 1", playerIndexes: [0, 1, 2], teeTime: "09:10" },
-    { id: "g2", name: "Partie 2", playerIndexes: [3], teeTime: "09:20" },
+    {
+      id: "g1",
+      name: "Partie 1",
+      playerIndexes: [0, 1, 2],
+      teeTime: "09:10",
+      markerAssignments: [
+        { playerIndex: 0, marksIndex: 1 },
+        { playerIndex: 1, marksIndex: 2 },
+        { playerIndex: 2, marksIndex: 0 },
+      ],
+    },
+    {
+      id: "g2",
+      name: "Partie 2",
+      playerIndexes: [3],
+      teeTime: "09:20",
+      markerAssignments: [{ playerIndex: 3, marksIndex: 3 }],
+    },
   ],
   teams: [
     { id: "t1", name: "Equipe 1", playerIndexes: [0, 1] },
@@ -126,15 +151,20 @@ const translations = {
     selectCourse: "Sélectionner",
     round: "Tour",
     groupsTitle: "Créer les parties",
-    groupsHelp: "Répartissez les joueurs dans les parties avant le départ.",
+    groupsHelp: "Générez les parties automatiquement, puis ajustez les joueurs si besoin.",
     group: "Partie",
+    groupSize: "Taille des parties",
+    groupsOf: "Parties de",
+    generateGroups: "Générer les parties",
+    manualPlayers: "Ajuster les joueurs",
     teeTime: "Départ",
     teamsTitle: "Créer les équipes",
     teamsHelp: "Pour un scramble, choisissez des équipes de 2 ou de 4 joueurs.",
     scrambleSize: "Scramble à",
     team: "Équipe",
     markerAssignTitle: "Qui marque qui ?",
-    markerAssignHelp: "Définissez le joueur marqué par chaque joueur. Chacun verra uniquement sa carte à marquer et sa carte personnelle.",
+    markerAssignHelp: "Définissez les marqueurs dans chaque partie uniquement. Chacun verra sa carte à marquer et sa carte personnelle.",
+    markerByGroup: "Marqueurs de la partie",
     marks: "marque",
     course: "Golf",
     tees: "Départs",
@@ -206,15 +236,20 @@ const translations = {
     selectCourse: "Select",
     round: "Round",
     groupsTitle: "Create groups",
-    groupsHelp: "Assign players to groups before the start.",
+    groupsHelp: "Generate groups automatically, then adjust players if needed.",
     group: "Group",
+    groupSize: "Group size",
+    groupsOf: "Groups of",
+    generateGroups: "Generate groups",
+    manualPlayers: "Adjust players",
     teeTime: "Tee time",
     teamsTitle: "Create teams",
     teamsHelp: "For scramble, choose teams of 2 or 4 players.",
     scrambleSize: "Scramble",
     team: "Team",
     markerAssignTitle: "Who marks whom?",
-    markerAssignHelp: "Choose which player each golfer marks. Each player sees only the official card to mark and their own check card.",
+    markerAssignHelp: "Choose markers inside each group only. Each player sees the official card they mark and their own check card.",
+    markerByGroup: "Group markers",
     marks: "marks",
     course: "Course",
     tees: "Tees",
@@ -457,6 +492,30 @@ function t(key) {
   return translations[state.language]?.[key] || translations.FR[key] || key;
 }
 
+function getSupabaseConfig() {
+  if (typeof window === "undefined") return null;
+  return window.FRIENDS_GOLF_LIVE_SUPABASE || null;
+}
+
+function getSupabaseStatus() {
+  const config = getSupabaseConfig();
+  if (!config?.url || !config?.publishableKey) return { label: "Non configuree", detail: "Ajoutez l'URL Supabase et la cle publique.", ready: false };
+  if (typeof window !== "undefined" && window.supabase?.createClient) {
+    return { label: "Configuration prete", detail: config.url, ready: true };
+  }
+  return { label: "Configuration trouvee", detail: "Le client Supabase sera charge en ligne.", ready: true };
+}
+
+function getSupabaseClient() {
+  if (typeof window === "undefined") return null;
+  const config = getSupabaseConfig();
+  if (!config?.url || !config?.publishableKey || !window.supabase?.createClient) return null;
+  if (!window.friendsGolfLiveSupabase) {
+    window.friendsGolfLiveSupabase = window.supabase.createClient(config.url, config.publishableKey);
+  }
+  return window.friendsGolfLiveSupabase;
+}
+
 function setView(view) {
   state.view = view;
   render();
@@ -516,10 +575,45 @@ function normalizeRoundCourses() {
   state.roundCourses = state.roundCourses.slice(0, target);
 }
 
+function playerName(playerIndex) {
+  return state.setupPlayers[playerIndex]?.name || `${t("players")} ${playerIndex + 1}`;
+}
+
+function buildMarkerAssignments(playerIndexes) {
+  return playerIndexes.map((playerIndex, position) => ({
+    playerIndex,
+    marksIndex: playerIndexes.length > 1 ? playerIndexes[(position + 1) % playerIndexes.length] : playerIndex,
+  }));
+}
+
+function syncGroupMarkerAssignments(group) {
+  const players = group.playerIndexes;
+  const existing = Array.isArray(group.markerAssignments) ? group.markerAssignments : [];
+  group.markerAssignments = players.map((playerIndex, position) => {
+    const previous = existing.find((item) => item.playerIndex === playerIndex);
+    const fallback = players.length > 1 ? players[(position + 1) % players.length] : playerIndex;
+    return {
+      playerIndex,
+      marksIndex: players.includes(Number(previous?.marksIndex)) ? Number(previous.marksIndex) : fallback,
+    };
+  });
+}
+
+function syncFlatMarkerAssignments() {
+  state.markerAssignments = state.groups.flatMap((group) => group.markerAssignments || []);
+}
+
+function teeTimeForGroup(groupIndex) {
+  const minutes = 9 * 60 + 10 + groupIndex * 10;
+  const hour = String(Math.floor(minutes / 60)).padStart(2, "0");
+  const minute = String(minutes % 60).padStart(2, "0");
+  return `${hour}:${minute}`;
+}
+
 function normalizeGroups() {
   normalizeSetupPlayers();
   const filledIndexes = state.setupPlayers.map((_, index) => index);
-  if (!state.groups.length) state.groups = [{ id: "g1", name: `${t("group")} 1`, playerIndexes: filledIndexes.slice(0, 4), teeTime: "09:10" }];
+  if (!state.groups.length) state.groups = [{ id: "g1", name: `${t("group")} 1`, playerIndexes: filledIndexes.slice(0, 4), teeTime: "09:10", markerAssignments: [] }];
   const assigned = new Set(state.groups.flatMap((group) => group.playerIndexes));
   filledIndexes.forEach((index) => {
     if (!assigned.has(index)) {
@@ -527,6 +621,40 @@ function normalizeGroups() {
       group.playerIndexes.push(index);
     }
   });
+  state.groups = state.groups
+    .map((group, index) => ({
+      ...group,
+      name: group.name || `${t("group")} ${index + 1}`,
+      teeTime: group.teeTime || teeTimeForGroup(index),
+      playerIndexes: [...new Set(group.playerIndexes.filter((playerIndex) => filledIndexes.includes(playerIndex)))],
+    }))
+    .filter((group) => group.playerIndexes.length || state.groups.length === 1);
+  state.groups.forEach(syncGroupMarkerAssignments);
+  syncFlatMarkerAssignments();
+}
+
+function setGroupSize(size) {
+  state.setup.groupSize = Math.max(2, Math.min(4, Number(size) || 3));
+  render();
+}
+
+function generateGroupsBySize() {
+  normalizeSetupPlayers();
+  const size = Math.max(2, Math.min(4, Number(state.setup.groupSize) || 3));
+  const indexes = state.setupPlayers.map((_, index) => index);
+  state.groups = [];
+  for (let index = 0; index < indexes.length; index += size) {
+    const playerIndexes = indexes.slice(index, index + size);
+    state.groups.push({
+      id: `g${state.groups.length + 1}`,
+      name: `${t("group")} ${state.groups.length + 1}`,
+      playerIndexes,
+      teeTime: teeTimeForGroup(state.groups.length),
+      markerAssignments: buildMarkerAssignments(playerIndexes),
+    });
+  }
+  syncFlatMarkerAssignments();
+  render();
 }
 
 function normalizeTeams() {
@@ -540,11 +668,7 @@ function normalizeTeams() {
 }
 
 function normalizeMarkerAssignments() {
-  normalizeSetupPlayers();
-  state.markerAssignments = state.setupPlayers.map((_, index) => ({
-    playerIndex: index,
-    marksIndex: state.markerAssignments.find((item) => item.playerIndex === index)?.marksIndex ?? ((index + 1) % state.setupPlayers.length),
-  }));
+  normalizeGroups();
 }
 
 function updatePlayerSetup(index, field, value) {
@@ -577,8 +701,14 @@ function toggleGroupPlayer(groupIndex, playerIndex) {
   if (group.playerIndexes.includes(playerIndex)) {
     group.playerIndexes = group.playerIndexes.filter((item) => item !== playerIndex);
   } else {
+    state.groups.forEach((item, index) => {
+      if (index !== groupIndex) item.playerIndexes = item.playerIndexes.filter((candidate) => candidate !== playerIndex);
+    });
     group.playerIndexes.push(playerIndex);
   }
+  state.groups.forEach(syncGroupMarkerAssignments);
+  syncGroupMarkerAssignments(group);
+  syncFlatMarkerAssignments();
   render();
 }
 
@@ -588,7 +718,7 @@ function updateGroup(groupIndex, field, value) {
 }
 
 function addGroup() {
-  state.groups.push({ id: `g${Date.now()}`, name: `${t("group")} ${state.groups.length + 1}`, playerIndexes: [], teeTime: "" });
+  state.groups.push({ id: `g${Date.now()}`, name: `${t("group")} ${state.groups.length + 1}`, playerIndexes: [], teeTime: teeTimeForGroup(state.groups.length), markerAssignments: [] });
   render();
 }
 
@@ -603,13 +733,122 @@ function updateTeamPlayer(teamIndex, slotIndex, playerIndex) {
   state.teams[teamIndex].playerIndexes[slotIndex] = Number(playerIndex);
 }
 
-function updateMarkerAssignment(playerIndex, marksIndex) {
+function updateMarkerAssignment(groupIndex, playerIndex, marksIndex) {
   normalizeMarkerAssignments();
-  const assignment = state.markerAssignments.find((item) => item.playerIndex === playerIndex);
+  const group = state.groups[groupIndex];
+  const assignment = group?.markerAssignments?.find((item) => item.playerIndex === playerIndex);
   if (assignment) assignment.marksIndex = Number(marksIndex);
+  syncFlatMarkerAssignments();
 }
 
-function nextWizardStep() {
+async function saveCompetitionToSupabase() {
+  const client = getSupabaseClient();
+  if (!client) {
+    state.saveStatus = { type: "warning", message: "Supabase n'est pas encore disponible. La partie reste locale pour l'instant." };
+    return false;
+  }
+
+  state.savingSetup = true;
+  state.saveStatus = { type: "info", message: "Sauvegarde Supabase en cours..." };
+  render();
+
+  try {
+    const competitionPayload = {
+      name: state.setup.competitionName || "Friends Golf Live",
+      competition_type: state.setup.competitionType || "friends",
+      starts_on: state.setup.startDate || null,
+      ends_on: state.setup.endDate || null,
+      game_formula: state.setup.gameFormula || "stableford-net",
+      scoring_mode: state.scoringMode || "marker",
+      putts_enabled: Boolean(state.puttsEnabled),
+    };
+    const { data: competition, error: competitionError } = await client
+      .from("competitions")
+      .insert(competitionPayload)
+      .select("id")
+      .single();
+    if (competitionError) throw competitionError;
+
+    const playerPayloads = state.setupPlayers.map((player, index) => ({
+      competition_id: competition.id,
+      display_name: player.name || `${t("players")} ${index + 1}`,
+      playing_index: player.index === "" ? null : Number(player.index),
+    }));
+    const { data: players, error: playersError } = await client
+      .from("players")
+      .insert(playerPayloads)
+      .select("id");
+    if (playersError) throw playersError;
+
+    const roundPayloads = state.roundCourses.map((course, index) => ({
+      competition_id: competition.id,
+      round_number: index + 1,
+      course_name: course.courseName || state.setup.courseName || null,
+      tees: course.tees || state.setup.tees || null,
+    }));
+    const { data: rounds, error: roundsError } = await client
+      .from("rounds")
+      .insert(roundPayloads)
+      .select("id, round_number");
+    if (roundsError) throw roundsError;
+
+    const firstRound = rounds.find((round) => Number(round.round_number) === 1) || rounds[0];
+    const groupPayloads = state.groups.map((group) => ({
+      competition_id: competition.id,
+      round_id: firstRound?.id || null,
+      name: group.name,
+      tee_time: group.teeTime || null,
+    }));
+    const { data: groups, error: groupsError } = await client
+      .from("groups")
+      .insert(groupPayloads)
+      .select("id");
+    if (groupsError) throw groupsError;
+
+    const groupPlayerPayloads = state.groups.flatMap((group, groupIndex) =>
+      group.playerIndexes.map((playerIndex, position) => ({
+        group_id: groups[groupIndex].id,
+        player_id: players[playerIndex].id,
+        position: position + 1,
+      }))
+    );
+    if (groupPlayerPayloads.length) {
+      const { error: groupPlayersError } = await client.from("group_players").insert(groupPlayerPayloads);
+      if (groupPlayersError) throw groupPlayersError;
+    }
+
+    const markerPayloads = state.groups.flatMap((group, groupIndex) =>
+      (group.markerAssignments || []).map((assignment) => ({
+        competition_id: competition.id,
+        round_id: firstRound?.id || null,
+        group_id: groups[groupIndex].id,
+        marker_player_id: players[assignment.playerIndex].id,
+        marked_player_id: players[assignment.marksIndex].id,
+      }))
+    );
+    if (markerPayloads.length) {
+      const { error: markersError } = await client.from("marker_assignments").insert(markerPayloads);
+      if (markersError) throw markersError;
+    }
+
+    state.supabaseIds = {
+      competitionId: competition.id,
+      playerIds: players.map((player) => player.id),
+      roundIds: rounds.map((round) => round.id),
+      groupIds: groups.map((group) => group.id),
+    };
+    state.saveStatus = { type: "success", message: "Partie sauvegardee dans Supabase." };
+    return true;
+  } catch (error) {
+    state.saveStatus = { type: "warning", message: `Erreur Supabase : ${error.message || "sauvegarde impossible"}` };
+    return false;
+  } finally {
+    state.savingSetup = false;
+    render();
+  }
+}
+
+async function nextWizardStep() {
   normalizeSetupPlayers();
   normalizeRoundCourses();
   normalizeGroups();
@@ -617,6 +856,7 @@ function nextWizardStep() {
   if (state.scoringMode === "marker") normalizeMarkerAssignments();
   const steps = getWizardSteps();
   if (state.wizardStep === steps.length - 1) {
+    await saveCompetitionToSupabase();
     state.wizardOpen = false;
     state.view = "score";
   } else {
@@ -807,9 +1047,10 @@ function renderWizard() {
           <button class="button small" onclick="closeWizard()">${t("close")}</button>
         </header>
         ${renderWizardStep(current)}
+        ${state.saveStatus ? `<div class="wizard-status ${state.saveStatus.type}">${state.saveStatus.message}</div>` : ""}
         <footer class="wizard-actions">
           <button class="button" onclick="setWizardStep(${state.wizardStep - 1})" ${state.wizardStep === 0 ? "disabled" : ""}>${t("back")}</button>
-          <button class="button primary" onclick="nextWizardStep()">${state.wizardStep === steps.length - 1 ? t("startScoring") : t("next")}</button>
+          <button class="button primary" onclick="nextWizardStep()" ${state.savingSetup ? "disabled" : ""}>${state.savingSetup ? "Sauvegarde..." : state.wizardStep === steps.length - 1 ? t("startScoring") : t("next")}</button>
         </footer>
       </section>
     </div>
@@ -898,6 +1139,17 @@ function renderWizardStep(step) {
       <div class="wizard-body">
         <h2>${t("groupsTitle")}</h2>
         <p>${t("groupsHelp")}</p>
+        <div class="setup-flow">
+          <div class="field">
+            <label>${t("groupSize")}</label>
+            <div class="choice-row">
+              <button class="choice ${Number(state.setup.groupSize) === 2 ? "active" : ""}" onclick="setGroupSize(2)">${t("groupsOf")} 2</button>
+              <button class="choice ${Number(state.setup.groupSize) === 3 ? "active" : ""}" onclick="setGroupSize(3)">${t("groupsOf")} 3</button>
+              <button class="choice ${Number(state.setup.groupSize) === 4 ? "active" : ""}" onclick="setGroupSize(4)">${t("groupsOf")} 4</button>
+            </div>
+          </div>
+          <button class="button primary setup-start" onclick="generateGroupsBySize()">${icon("users")}${t("generateGroups")}</button>
+        </div>
         <div class="group-builder">
           ${state.groups.map((group, groupIndex) => `
             <div class="builder-card">
@@ -905,9 +1157,10 @@ function renderWizardStep(step) {
                 <div class="field"><label>${t("group")}</label><input value="${group.name}" oninput="updateGroup(${groupIndex}, 'name', this.value)" /></div>
                 <div class="field"><label>${t("teeTime")}</label><input value="${group.teeTime}" oninput="updateGroup(${groupIndex}, 'teeTime', this.value)" /></div>
               </div>
+              <strong class="mini-title">${t("manualPlayers")}</strong>
               <div class="player-chip-grid">
                 ${state.setupPlayers.map((player, playerIndex) => `
-                  <button class="choice ${group.playerIndexes.includes(playerIndex) ? "active" : ""}" onclick="toggleGroupPlayer(${groupIndex}, ${playerIndex})">${player.name || `${t("players")} ${playerIndex + 1}`}</button>
+                  <button class="choice ${group.playerIndexes.includes(playerIndex) ? "active" : ""}" onclick="toggleGroupPlayer(${groupIndex}, ${playerIndex})">${playerName(playerIndex)}</button>
                 `).join("")}
               </div>
             </div>
@@ -963,18 +1216,20 @@ function renderWizardStep(step) {
         <h2>${t("markerAssignTitle")}</h2>
         <p>${t("markerAssignHelp")}</p>
         <div class="marker-list">
-          ${state.markerAssignments.map((assignment) => {
-            const player = state.setupPlayers[assignment.playerIndex];
-            return `
-              <div class="marker-row">
-                <strong>${player?.name || `${t("players")} ${assignment.playerIndex + 1}`}</strong>
-                <span>${t("marks")}</span>
-                <select onchange="updateMarkerAssignment(${assignment.playerIndex}, this.value)">
-                  ${state.setupPlayers.map((candidate, candidateIndex) => `<option value="${candidateIndex}" ${assignment.marksIndex === candidateIndex ? "selected" : ""}>${candidate.name || `${t("players")} ${candidateIndex + 1}`}</option>`).join("")}
-                </select>
-              </div>
-            `;
-          }).join("")}
+          ${state.groups.map((group, groupIndex) => `
+            <div class="builder-card">
+              <strong>${t("markerByGroup")} - ${group.name}</strong>
+              ${(group.markerAssignments || []).map((assignment) => `
+                <div class="marker-row">
+                  <strong>${playerName(assignment.playerIndex)}</strong>
+                  <span>${t("marks")}</span>
+                  <select onchange="updateMarkerAssignment(${groupIndex}, ${assignment.playerIndex}, this.value)">
+                    ${group.playerIndexes.map((candidateIndex) => `<option value="${candidateIndex}" ${assignment.marksIndex === candidateIndex ? "selected" : ""}>${playerName(candidateIndex)}</option>`).join("")}
+                  </select>
+                </div>
+              `).join("")}
+            </div>
+          `).join("")}
         </div>
       </div>
     `;
@@ -1033,6 +1288,7 @@ function renderCreate() {
 }
 
 function renderScore() {
+  normalizeGroups();
   const entries = Object.entries(state.scores).filter(([, item]) => state.scoringMode !== "marker" || item.cardRole !== "hidden");
   const rows = entries
     .map(([key, item]) => `
@@ -1049,6 +1305,10 @@ function renderScore() {
   const active = state.activeScore;
   const activeItem = active ? state.scores[active.playerKey] : null;
   const activeLabel = activeItem ? `${activeItem.name} - ${active.field === "gross" ? "score" : "putts"}` : "Selectionner une cellule";
+  const exampleGroup = state.groups.find((group) => group.playerIndexes.length) || state.groups[0];
+  const exampleAssignment = exampleGroup?.markerAssignments?.[0];
+  const examplePlayer = exampleAssignment ? playerName(exampleAssignment.playerIndex) : "Sophie";
+  const exampleMarked = exampleAssignment ? playerName(exampleAssignment.marksIndex) : "Thomas";
 
   return `
     <div class="section-title">
@@ -1069,7 +1329,7 @@ function renderScore() {
         </div>
         ${renderMobileKeypad(activeLabel)}
         <button class="button primary" onclick="state.hole = Math.min(18, state.hole + 1); render();">${icon("flag")}Valider le trou</button>
-        <div class="empty-note">${state.scoringMode === "marker" ? "Profil exemple : Sophie voit seulement Thomas à marquer officiellement et sa propre carte de vérification." : "La saisie suit le mode choisi pendant la création."}</div>
+        <div class="empty-note">${state.scoringMode === "marker" ? `Profil exemple : ${examplePlayer} voit seulement ${exampleMarked} à marquer officiellement et sa propre carte de vérification.` : "La saisie suit le mode choisi pendant la création."}</div>
       </div>
       ${renderLeaderboardPanel()}
     </section>
@@ -1131,6 +1391,7 @@ function renderLeaderboard() {
 }
 
 function renderSecurity() {
+  const supabaseStatus = getSupabaseStatus();
   const historyRows = state.scoreEvents.length ? state.scoreEvents.map((event, index) => `
     <div class="audit-item">
       <span class="rank">${index + 1}</span>
@@ -1159,6 +1420,8 @@ function renderSecurity() {
       <div class="panel">
         <div class="panel-head"><div><h3>Exports</h3><span>Avant, pendant et apres competition</span></div></div>
         <div class="panel pad switches">
+          <label class="switch"><span>Supabase</span><span class="pill ${supabaseStatus.ready ? "blue" : "warning"}">${supabaseStatus.label}</span></label>
+          <div class="empty-note">${supabaseStatus.detail}</div>
           <label class="switch"><span>Export CSV scores complets</span><button class="button small">${icon("download")}CSV</button></label>
           <label class="switch"><span>Archive JSON competition</span><button class="button small">${icon("download")}JSON</button></label>
           <label class="switch"><span>Recapitulatif PDF final</span><button class="button small">${icon("download")}PDF</button></label>
@@ -1348,6 +1611,10 @@ function renderCurrentView() {
 
 function render() {
   if (typeof document === "undefined") return;
+  window.__friendsGolfLiveState = {
+    saveStatus: state.saveStatus,
+    supabaseIds: state.supabaseIds,
+  };
   document.getElementById("app").innerHTML = `
     <div class="shell">
       ${renderTopbar()}
@@ -1368,6 +1635,9 @@ if (typeof module !== "undefined") {
   module.exports = {
     state,
     setPuttsEnabled,
+    setGroupSize,
+    generateGroupsBySize,
+    normalizeGroups,
     setActiveScore,
     keypadScore,
     clearActiveScore,

@@ -660,6 +660,28 @@ button {
   border-bottom: 0;
 }
 
+.wizard-status {
+  margin: 0 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfa;
+  color: var(--muted);
+  font-weight: 750;
+}
+
+.wizard-status.success {
+  border-color: rgba(23, 99, 63, 0.28);
+  background: var(--mint);
+  color: var(--green-dark);
+}
+
+.wizard-status.warning {
+  border-color: rgba(164, 113, 24, 0.28);
+  background: #fff8e7;
+  color: #825b12;
+}
+
 .wizard-body {
   padding: 18px;
   overflow: auto;
@@ -734,6 +756,13 @@ button {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fbfcfa;
+}
+
+.mini-title {
+  display: block;
+  margin: 12px 0 8px;
+  font-size: 13px;
+  color: var(--muted);
 }
 
 .course-option {
