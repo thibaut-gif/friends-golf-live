@@ -21,9 +21,18 @@ Import dans un nouveau depot GitHub :
 Version incluse :
 - accueil avec un seul bouton : Creer une nouvelle partie ;
 - assistant etape par etape avec une seule demande par ecran ;
+- recherche de golf par nom et par tour ;
+- bouton geolocalisation pour proposer les golfs proches ;
+- choix d'un golf different pour chaque tour ;
+- formule Chouette et formules scramble ;
+- creation des parties et repartition des joueurs ;
+- creation des equipes pour scramble a 2 ou a 4 ;
+- attribution marqueur / joueur marque ;
+- saisie marqueur limitee a la carte officielle + carte de verification personnelle ;
+- carte digitale avec comparaison, ecarts et signature ;
 - choix langue par drapeau avec traduction des textes principaux ;
 - saisie score mobile avec pave numerique ;
 - putts optionnels ;
 - journal local des modifications de score.
 
-Note : cette version est une maquette statique. Le vrai temps reel multi-telephones demandera ensuite un backend type Supabase.
+Note : cette version est une maquette statique. Le vrai temps reel multi-telephones et la vraie base mondiale de golfs demanderont ensuite un backend/API type Supabase + fournisseur de donnees parcours.

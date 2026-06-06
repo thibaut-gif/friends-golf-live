@@ -719,6 +719,113 @@ button {
   font-size: 28px;
 }
 
+.round-course-list,
+.group-builder,
+.team-list,
+.marker-list,
+.course-suggestions {
+  display: grid;
+  gap: 10px;
+}
+
+.round-course-card,
+.builder-card {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfa;
+}
+
+.course-option {
+  width: 100%;
+  min-height: 58px;
+  padding: 10px;
+  display: grid;
+  gap: 3px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+  color: var(--ink);
+  text-align: left;
+}
+
+.course-option.active {
+  border-color: var(--green);
+  background: var(--mint);
+}
+
+.course-option strong,
+.course-option span {
+  display: block;
+}
+
+.course-option span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.player-chip-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.marker-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfa;
+}
+
+.marker-row span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.scorecard-table-wrap {
+  overflow-x: auto;
+}
+
+.scorecard-table {
+  width: 100%;
+  min-width: 680px;
+  border-collapse: collapse;
+}
+
+.scorecard-table th,
+.scorecard-table td {
+  padding: 10px;
+  border-bottom: 1px solid var(--line);
+  border-right: 1px solid var(--line);
+  text-align: center;
+}
+
+.scorecard-table th:first-child,
+.scorecard-table td:first-child {
+  text-align: left;
+  font-weight: 850;
+}
+
+.mismatch-cell {
+  background: var(--amber-soft);
+  color: #7a500a;
+  font-weight: 950;
+}
+
+.signature-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 12px;
+  border-top: 1px solid var(--line);
+}
+
 .button:disabled {
   cursor: default;
   opacity: 0.45;
@@ -1101,6 +1208,10 @@ button {
 
   .player-edit-row input:last-child {
     grid-column: 2;
+  }
+
+  .marker-row {
+    grid-template-columns: 1fr;
   }
 
   .score-line {

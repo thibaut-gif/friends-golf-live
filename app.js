@@ -28,23 +28,41 @@ const state = {
     courseName: "Golf de Chantilly - Vineuil",
     tees: "Jaunes",
     gameFormula: "stableford-net",
+    scrambleSize: 2,
     liveLeaderboard: true,
     cardSignature: true,
   },
+  locationPermission: "idle",
   setupPlayers: [
     { name: "Sophie Martin", index: 12.4 },
     { name: "Thomas Keller", index: 8.7 },
     { name: "Ines Duarte", index: 18.1 },
     { name: "Marc Lefevre", index: 21.8 },
   ],
+  roundCourses: [
+    { courseName: "Golf de Chantilly - Vineuil", tees: "Jaunes", selectedCourseId: "chantilly-vineuil" },
+  ],
+  groups: [
+    { id: "g1", name: "Partie 1", playerIndexes: [0, 1, 2], teeTime: "09:10" },
+    { id: "g2", name: "Partie 2", playerIndexes: [3], teeTime: "09:20" },
+  ],
+  teams: [
+    { id: "t1", name: "Equipe 1", playerIndexes: [0, 1] },
+    { id: "t2", name: "Equipe 2", playerIndexes: [2, 3] },
+  ],
+  markerAssignments: [
+    { playerIndex: 0, marksIndex: 1 },
+    { playerIndex: 1, marksIndex: 2 },
+    { playerIndex: 2, marksIndex: 0 },
+  ],
   hole: 7,
   puttsEnabled: false,
   activeScore: { playerKey: "sophie", field: "gross" },
   scoreEvents: [],
   scores: {
-    sophie: { name: "Sophie", gross: 5, putts: 2, points: 3 },
-    thomas: { name: "Thomas", gross: 4, putts: 1, points: 4 },
-    ines: { name: "Ines", gross: 6, putts: 2, points: 2 },
+    sophie: { name: "Sophie", gross: 5, putts: 2, points: 3, cardRole: "verification" },
+    thomas: { name: "Thomas", gross: 4, putts: 1, points: 4, cardRole: "official" },
+    ines: { name: "Ines", gross: 6, putts: 2, points: 2, cardRole: "hidden" },
   },
 };
 
@@ -54,6 +72,15 @@ const languages = [
   { code: "ES", label: "Espanol", flag: "🇪🇸" },
   { code: "IT", label: "Italiano", flag: "🇮🇹" },
   { code: "DE", label: "Deutsch", flag: "🇩🇪" },
+];
+
+const golfSuggestions = [
+  { id: "chantilly-vineuil", name: "Golf de Chantilly - Vineuil", location: "Chantilly, France", distance: "42 km", par: 71 },
+  { id: "national-albatros", name: "Golf National - Albatros", location: "Guyancourt, France", distance: "31 km", par: 72 },
+  { id: "fontainebleau", name: "Golf de Fontainebleau", location: "Fontainebleau, France", distance: "68 km", par: 72 },
+  { id: "saint-cloud", name: "Golf de Saint-Cloud", location: "Garches, France", distance: "12 km", par: 71 },
+  { id: "st-andrews", name: "St Andrews Links - Old Course", location: "St Andrews, Scotland", distance: "monde", par: 72 },
+  { id: "valderrama", name: "Real Club Valderrama", location: "Sotogrande, Spain", distance: "monde", par: 71 },
 ];
 
 const translations = {
@@ -91,7 +118,24 @@ const translations = {
     roundsTitle: "Combien de tours ?",
     roundsHelp: "Choisissez le nombre de tours de la compétition.",
     coursesTitle: "Sélectionner le golf",
-    coursesHelp: "Choisissez le parcours et les départs utilisés.",
+    coursesHelp: "Choisissez un golf par tour. Utilisez la géolocalisation ou recherchez un parcours dans le monde.",
+    useLocation: "Utiliser ma position",
+    locationHelp: "Demander l'autorisation pour proposer les golfs autour de moi.",
+    nearbyGolf: "Golfs proches",
+    searchGolf: "Rechercher un golf",
+    selectCourse: "Sélectionner",
+    round: "Tour",
+    groupsTitle: "Créer les parties",
+    groupsHelp: "Répartissez les joueurs dans les parties avant le départ.",
+    group: "Partie",
+    teeTime: "Départ",
+    teamsTitle: "Créer les équipes",
+    teamsHelp: "Pour un scramble, choisissez des équipes de 2 ou de 4 joueurs.",
+    scrambleSize: "Scramble à",
+    team: "Équipe",
+    markerAssignTitle: "Qui marque qui ?",
+    markerAssignHelp: "Définissez le joueur marqué par chaque joueur. Chacun verra uniquement sa carte à marquer et sa carte personnelle.",
+    marks: "marque",
     course: "Golf",
     tees: "Départs",
     formulaTitle: "Formule de jeu",
@@ -110,6 +154,11 @@ const translations = {
     putts: "Saisie des putts",
     leaderboardVisible: "Classement visible en direct",
     signature: "Vérification croisée et signature",
+    digitalScorecard: "Carte digitale",
+    officialCard: "Carte officielle",
+    checkCard: "Ma carte de vérification",
+    signCard: "Signer la carte",
+    chouetteHelp: "Chouette : partie à 3 joueurs, 6 points par trou. Égalité à trois : 2/2/2. Scores tous différents : 4/2/0. Deux meilleurs ex aequo : 3/3/0.",
     score: "Score",
     cards: "Cartes",
     ranking: "Classement",
@@ -149,7 +198,24 @@ const translations = {
     roundsTitle: "How many rounds?",
     roundsHelp: "Choose the number of rounds.",
     coursesTitle: "Select the golf course",
-    coursesHelp: "Choose the course and tees.",
+    coursesHelp: "Choose one course per round. Use location or search worldwide.",
+    useLocation: "Use my location",
+    locationHelp: "Ask permission to suggest nearby golf courses.",
+    nearbyGolf: "Nearby courses",
+    searchGolf: "Search course",
+    selectCourse: "Select",
+    round: "Round",
+    groupsTitle: "Create groups",
+    groupsHelp: "Assign players to groups before the start.",
+    group: "Group",
+    teeTime: "Tee time",
+    teamsTitle: "Create teams",
+    teamsHelp: "For scramble, choose teams of 2 or 4 players.",
+    scrambleSize: "Scramble",
+    team: "Team",
+    markerAssignTitle: "Who marks whom?",
+    markerAssignHelp: "Choose which player each golfer marks. Each player sees only the official card to mark and their own check card.",
+    marks: "marks",
     course: "Course",
     tees: "Tees",
     formulaTitle: "Game format",
@@ -168,6 +234,11 @@ const translations = {
     putts: "Track putts",
     leaderboardVisible: "Live leaderboard visible",
     signature: "Cross-check and signature",
+    digitalScorecard: "Digital scorecard",
+    officialCard: "Official card",
+    checkCard: "My check card",
+    signCard: "Sign card",
+    chouetteHelp: "Chouette: 3-player game, 6 points per hole. Three-way tie: 2/2/2. All different: 4/2/0. Two tied best scores: 3/3/0.",
     score: "Score",
     cards: "Cards",
     ranking: "Ranking",
@@ -419,7 +490,8 @@ function closeWizard() {
 }
 
 function setWizardStep(step) {
-  state.wizardStep = Math.max(0, Math.min(wizardSteps.length - 1, step));
+  const steps = getWizardSteps();
+  state.wizardStep = Math.max(0, Math.min(steps.length - 1, step));
   render();
 }
 
@@ -436,14 +508,115 @@ function normalizeSetupPlayers() {
   state.setupPlayers = state.setupPlayers.slice(0, target);
 }
 
+function normalizeRoundCourses() {
+  const target = Math.max(1, Math.min(4, Number(state.setup.roundCount) || 1));
+  while (state.roundCourses.length < target) {
+    state.roundCourses.push({ courseName: "", tees: "Jaunes", selectedCourseId: "" });
+  }
+  state.roundCourses = state.roundCourses.slice(0, target);
+}
+
+function normalizeGroups() {
+  normalizeSetupPlayers();
+  const filledIndexes = state.setupPlayers.map((_, index) => index);
+  if (!state.groups.length) state.groups = [{ id: "g1", name: `${t("group")} 1`, playerIndexes: filledIndexes.slice(0, 4), teeTime: "09:10" }];
+  const assigned = new Set(state.groups.flatMap((group) => group.playerIndexes));
+  filledIndexes.forEach((index) => {
+    if (!assigned.has(index)) {
+      const group = state.groups[state.groups.length - 1] || state.groups[0];
+      group.playerIndexes.push(index);
+    }
+  });
+}
+
+function normalizeTeams() {
+  normalizeSetupPlayers();
+  const size = Number(state.setup.scrambleSize) || 2;
+  const indexes = state.setupPlayers.map((_, index) => index);
+  state.teams = [];
+  for (let index = 0; index < indexes.length; index += size) {
+    state.teams.push({ id: `t${state.teams.length + 1}`, name: `${t("team")} ${state.teams.length + 1}`, playerIndexes: indexes.slice(index, index + size) });
+  }
+}
+
+function normalizeMarkerAssignments() {
+  normalizeSetupPlayers();
+  state.markerAssignments = state.setupPlayers.map((_, index) => ({
+    playerIndex: index,
+    marksIndex: state.markerAssignments.find((item) => item.playerIndex === index)?.marksIndex ?? ((index + 1) % state.setupPlayers.length),
+  }));
+}
+
 function updatePlayerSetup(index, field, value) {
   normalizeSetupPlayers();
   state.setupPlayers[index][field] = value;
 }
 
+function updateRoundCourse(index, field, value) {
+  normalizeRoundCourses();
+  state.roundCourses[index][field] = value;
+}
+
+function selectCourseForRound(index, courseId) {
+  normalizeRoundCourses();
+  const course = golfSuggestions.find((item) => item.id === courseId);
+  if (!course) return;
+  state.roundCourses[index].selectedCourseId = course.id;
+  state.roundCourses[index].courseName = course.name;
+}
+
+function requestLocationCourses() {
+  state.locationPermission = "granted";
+  render();
+}
+
+function toggleGroupPlayer(groupIndex, playerIndex) {
+  normalizeGroups();
+  const group = state.groups[groupIndex];
+  if (!group) return;
+  if (group.playerIndexes.includes(playerIndex)) {
+    group.playerIndexes = group.playerIndexes.filter((item) => item !== playerIndex);
+  } else {
+    group.playerIndexes.push(playerIndex);
+  }
+  render();
+}
+
+function updateGroup(groupIndex, field, value) {
+  normalizeGroups();
+  state.groups[groupIndex][field] = value;
+}
+
+function addGroup() {
+  state.groups.push({ id: `g${Date.now()}`, name: `${t("group")} ${state.groups.length + 1}`, playerIndexes: [], teeTime: "" });
+  render();
+}
+
+function setScrambleSize(size) {
+  state.setup.scrambleSize = size;
+  normalizeTeams();
+  render();
+}
+
+function updateTeamPlayer(teamIndex, slotIndex, playerIndex) {
+  normalizeTeams();
+  state.teams[teamIndex].playerIndexes[slotIndex] = Number(playerIndex);
+}
+
+function updateMarkerAssignment(playerIndex, marksIndex) {
+  normalizeMarkerAssignments();
+  const assignment = state.markerAssignments.find((item) => item.playerIndex === playerIndex);
+  if (assignment) assignment.marksIndex = Number(marksIndex);
+}
+
 function nextWizardStep() {
   normalizeSetupPlayers();
-  if (state.wizardStep === wizardSteps.length - 1) {
+  normalizeRoundCourses();
+  normalizeGroups();
+  if (String(state.setup.gameFormula).includes("scramble")) normalizeTeams();
+  if (state.scoringMode === "marker") normalizeMarkerAssignments();
+  const steps = getWizardSteps();
+  if (state.wizardStep === steps.length - 1) {
     state.wizardOpen = false;
     state.view = "score";
   } else {
@@ -598,7 +771,14 @@ function renderDashboard() {
   `;
 }
 
-const wizardSteps = ["competition", "playerCount", "players", "rounds", "course", "formula", "scoringMode", "options"];
+function getWizardSteps() {
+  const steps = ["competition", "playerCount", "players", "rounds", "course", "formula"];
+  if (String(state.setup.gameFormula).includes("scramble")) steps.push("teams");
+  steps.push("groups", "scoringMode");
+  if (state.scoringMode === "marker") steps.push("markerAssign");
+  steps.push("options");
+  return steps;
+}
 
 const gameFormulas = [
   ["stableford-net", "Stableford net"],
@@ -606,6 +786,7 @@ const gameFormulas = [
   ["stroke-net", "Stroke play net"],
   ["stroke-gross", "Stroke play brut"],
   ["match-play", "Match play"],
+  ["chouette", "Chouette - 3 joueurs / 6 points"],
   ["skins", "Skins game"],
   ["scramble", "Scramble"],
   ["best-ball", "Best ball"],
@@ -616,18 +797,19 @@ const gameFormulas = [
 
 function renderWizard() {
   if (!state.wizardOpen) return "";
-  const current = wizardSteps[state.wizardStep];
+  const steps = getWizardSteps();
+  const current = steps[state.wizardStep];
   return `
     <div class="wizard-backdrop" role="dialog" aria-modal="true">
       <section class="wizard-panel">
         <header class="wizard-head">
-          <span class="pill blue">${t("step")} ${state.wizardStep + 1}/${wizardSteps.length}</span>
+          <span class="pill blue">${t("step")} ${state.wizardStep + 1}/${steps.length}</span>
           <button class="button small" onclick="closeWizard()">${t("close")}</button>
         </header>
         ${renderWizardStep(current)}
         <footer class="wizard-actions">
           <button class="button" onclick="setWizardStep(${state.wizardStep - 1})" ${state.wizardStep === 0 ? "disabled" : ""}>${t("back")}</button>
-          <button class="button primary" onclick="nextWizardStep()">${state.wizardStep === wizardSteps.length - 1 ? t("startScoring") : t("next")}</button>
+          <button class="button primary" onclick="nextWizardStep()">${state.wizardStep === steps.length - 1 ? t("startScoring") : t("next")}</button>
         </footer>
       </section>
     </div>
@@ -695,9 +877,10 @@ function renderWizardStep(step) {
     <div class="wizard-body">
       <h2>${t("coursesTitle")}</h2>
       <p>${t("coursesHelp")}</p>
-      <div class="form-grid">
-        <div class="field full"><label>${t("course")}</label><input value="${state.setup.courseName}" oninput="updateSetup('courseName', this.value)" /></div>
-        <div class="field full"><label>${t("tees")}</label><select onchange="updateSetup('tees', this.value)"><option>Jaunes</option><option>Blancs</option><option>Bleus</option><option>Rouges</option></select></div>
+      <button class="button primary setup-start" onclick="requestLocationCourses()">${icon("flag")}${t("useLocation")}</button>
+      <div class="empty-note">${t("locationHelp")} ${state.locationPermission === "granted" ? "Autorisation accordee - propositions proches affichees." : ""}</div>
+      <div class="round-course-list">
+        ${renderRoundCoursePickers()}
       </div>
     </div>
   `;
@@ -706,8 +889,62 @@ function renderWizardStep(step) {
       <h2>${t("formulaTitle")}</h2>
       <p>${t("formulaHelp")}</p>
       <div class="field full"><label>${t("formula")}</label><select onchange="updateSetup('gameFormula', this.value)">${gameFormulas.map(([value, label]) => `<option value="${value}" ${state.setup.gameFormula === value ? "selected" : ""}>${label}</option>`).join("")}</select></div>
+      ${state.setup.gameFormula === "chouette" ? `<div class="empty-note">${t("chouetteHelp")}</div>` : ""}
     </div>
   `;
+  if (step === "groups") {
+    normalizeGroups();
+    return `
+      <div class="wizard-body">
+        <h2>${t("groupsTitle")}</h2>
+        <p>${t("groupsHelp")}</p>
+        <div class="group-builder">
+          ${state.groups.map((group, groupIndex) => `
+            <div class="builder-card">
+              <div class="form-grid">
+                <div class="field"><label>${t("group")}</label><input value="${group.name}" oninput="updateGroup(${groupIndex}, 'name', this.value)" /></div>
+                <div class="field"><label>${t("teeTime")}</label><input value="${group.teeTime}" oninput="updateGroup(${groupIndex}, 'teeTime', this.value)" /></div>
+              </div>
+              <div class="player-chip-grid">
+                ${state.setupPlayers.map((player, playerIndex) => `
+                  <button class="choice ${group.playerIndexes.includes(playerIndex) ? "active" : ""}" onclick="toggleGroupPlayer(${groupIndex}, ${playerIndex})">${player.name || `${t("players")} ${playerIndex + 1}`}</button>
+                `).join("")}
+              </div>
+            </div>
+          `).join("")}
+        </div>
+        <button class="button setup-start" onclick="addGroup()">${icon("plus")}${t("group")}</button>
+      </div>
+    `;
+  }
+  if (step === "teams") {
+    normalizeTeams();
+    return `
+      <div class="wizard-body">
+        <h2>${t("teamsTitle")}</h2>
+        <p>${t("teamsHelp")}</p>
+        <div class="choice-row">
+          <button class="choice ${Number(state.setup.scrambleSize) === 2 ? "active" : ""}" onclick="setScrambleSize(2)">${t("scrambleSize")} 2</button>
+          <button class="choice ${Number(state.setup.scrambleSize) === 4 ? "active" : ""}" onclick="setScrambleSize(4)">${t("scrambleSize")} 4</button>
+        </div>
+        <div class="team-list">
+          ${state.teams.map((team, teamIndex) => `
+            <div class="builder-card">
+              <strong>${team.name}</strong>
+              ${Array.from({ length: Number(state.setup.scrambleSize) || 2 }).map((_, slotIndex) => `
+                <div class="field">
+                  <label>${t("players")} ${slotIndex + 1}</label>
+                  <select onchange="updateTeamPlayer(${teamIndex}, ${slotIndex}, this.value)">
+                    ${state.setupPlayers.map((player, playerIndex) => `<option value="${playerIndex}" ${team.playerIndexes[slotIndex] === playerIndex ? "selected" : ""}>${player.name || `${t("players")} ${playerIndex + 1}`}</option>`).join("")}
+                  </select>
+                </div>
+              `).join("")}
+            </div>
+          `).join("")}
+        </div>
+      </div>
+    `;
+  }
   if (step === "scoringMode") return `
     <div class="wizard-body">
       <h2>${t("scoringModeTitle")}</h2>
@@ -719,6 +956,29 @@ function renderWizardStep(step) {
       </div>
     </div>
   `;
+  if (step === "markerAssign") {
+    normalizeMarkerAssignments();
+    return `
+      <div class="wizard-body">
+        <h2>${t("markerAssignTitle")}</h2>
+        <p>${t("markerAssignHelp")}</p>
+        <div class="marker-list">
+          ${state.markerAssignments.map((assignment) => {
+            const player = state.setupPlayers[assignment.playerIndex];
+            return `
+              <div class="marker-row">
+                <strong>${player?.name || `${t("players")} ${assignment.playerIndex + 1}`}</strong>
+                <span>${t("marks")}</span>
+                <select onchange="updateMarkerAssignment(${assignment.playerIndex}, this.value)">
+                  ${state.setupPlayers.map((candidate, candidateIndex) => `<option value="${candidateIndex}" ${assignment.marksIndex === candidateIndex ? "selected" : ""}>${candidate.name || `${t("players")} ${candidateIndex + 1}`}</option>`).join("")}
+                </select>
+              </div>
+            `;
+          }).join("")}
+        </div>
+      </div>
+    `;
+  }
   return `
     <div class="wizard-body">
       <h2>${t("optionsTitle")}</h2>
@@ -730,6 +990,33 @@ function renderWizardStep(step) {
       </div>
     </div>
   `;
+}
+
+function renderRoundCoursePickers() {
+  normalizeRoundCourses();
+  return state.roundCourses.map((roundCourse, index) => {
+    const query = String(roundCourse.courseName || "").toLowerCase();
+    const matches = golfSuggestions.filter((course) => !query || `${course.name} ${course.location}`.toLowerCase().includes(query)).slice(0, 4);
+    return `
+      <div class="round-course-card">
+        <div class="section-title">
+          <div><h3>${t("round")} ${index + 1}</h3><span>${roundCourse.courseName || t("searchGolf")}</span></div>
+        </div>
+        <div class="form-grid">
+          <div class="field"><label>${t("searchGolf")}</label><input value="${roundCourse.courseName}" oninput="updateRoundCourse(${index}, 'courseName', this.value); render();" /></div>
+          <div class="field"><label>${t("tees")}</label><select onchange="updateRoundCourse(${index}, 'tees', this.value)"><option>Jaunes</option><option>Blancs</option><option>Bleus</option><option>Rouges</option></select></div>
+        </div>
+        <div class="course-suggestions">
+          ${(state.locationPermission === "granted" ? matches : matches.slice(0, 3)).map((course) => `
+            <button class="course-option ${roundCourse.selectedCourseId === course.id ? "active" : ""}" onclick="selectCourseForRound(${index}, '${course.id}'); render();">
+              <strong>${course.name}</strong>
+              <span>${course.location} · Par ${course.par} · ${course.distance}</span>
+            </button>
+          `).join("")}
+        </div>
+      </div>
+    `;
+  }).join("");
 }
 
 function renderCreate() {
@@ -746,12 +1033,13 @@ function renderCreate() {
 }
 
 function renderScore() {
-  const rows = Object.entries(state.scores)
+  const entries = Object.entries(state.scores).filter(([, item]) => state.scoringMode !== "marker" || item.cardRole !== "hidden");
+  const rows = entries
     .map(([key, item]) => `
       <div class="score-line ${state.puttsEnabled ? "" : "putts-off"}">
         <div>
           <div class="name">${item.name}</div>
-          <span class="pill blue">${item.points} pts calcules</span>
+          <span class="pill ${item.cardRole === "official" ? "warning" : "blue"}">${item.cardRole === "official" ? t("officialCard") : item.cardRole === "verification" ? t("checkCard") : `${item.points} pts calcules`}</span>
         </div>
         ${renderScoreCell(key, "gross", "Score", item.gross)}
         ${state.puttsEnabled ? renderScoreCell(key, "putts", "Putts", item.putts) : ""}
@@ -781,7 +1069,7 @@ function renderScore() {
         </div>
         ${renderMobileKeypad(activeLabel)}
         <button class="button primary" onclick="state.hole = Math.min(18, state.hole + 1); render();">${icon("flag")}Valider le trou</button>
-        <div class="empty-note">En mode carteur, chaque joueur saisit la carte officielle de son marqueur et sa propre carte de verification.</div>
+        <div class="empty-note">${state.scoringMode === "marker" ? "Profil exemple : Sophie voit seulement Thomas à marquer officiellement et sa propre carte de vérification." : "La saisie suit le mode choisi pendant la création."}</div>
       </div>
       ${renderLeaderboardPanel()}
     </section>
@@ -884,30 +1172,26 @@ function renderCards() {
   return `
     <div class="section-title">
       <div>
-        <h3>Verification des cartes</h3>
+        <h3>${t("digitalScorecard")}</h3>
         <span>Comparer, corriger, signer, puis verrouiller les scores</span>
       </div>
       <span class="pill warning">2 ecarts</span>
     </div>
     <section class="grid two">
-      <div class="panel">
-        <div class="panel-head"><div><h3>Controle croise</h3><span>Carte officielle vs verification joueur</span></div></div>
-        <div class="panel pad card-check-list">
-          <div class="card-check-row">
-            <span class="avatar">SM</span>
-            <div><strong>Sophie Martin</strong><span>Officiel marqueur: 43 · joueur: 43</span></div>
-            <span class="pill">OK</span>
-          </div>
-          <div class="card-check-row mismatch">
-            <span class="avatar">TK</span>
-            <div><strong>Thomas Keller</strong><span>Officiel marqueur: 39 · joueur: 40 · trou 6 a verifier</span></div>
-            <span class="pill warning">Ecart</span>
-          </div>
-          <div class="card-check-row">
-            <span class="avatar">ID</span>
-            <div><strong>Ines Duarte</strong><span>Officiel marqueur: 48 · joueur: 48</span></div>
-            <span class="pill">OK</span>
-          </div>
+      <div class="panel digital-card">
+        <div class="panel-head"><div><h3>Thomas Keller</h3><span>${t("officialCard")} · ${t("checkCard")}</span></div></div>
+        <div class="scorecard-table-wrap">
+          <table class="scorecard-table">
+            <thead><tr><th>Trou</th>${[1, 2, 3, 4, 5, 6, 7, 8, 9].map((hole) => `<th>${hole}</th>`).join("")}<th>Total</th></tr></thead>
+            <tbody>
+              <tr><td>${t("officialCard")}</td>${[4, 5, 3, 4, 5, 4, 4, 3, 5].map((score, index) => `<td class="${index === 5 ? "mismatch-cell" : ""}">${score}</td>`).join("")}<td>37</td></tr>
+              <tr><td>${t("checkCard")}</td>${[4, 5, 3, 4, 5, 5, 4, 3, 5].map((score, index) => `<td class="${index === 5 ? "mismatch-cell" : ""}">${score}</td>`).join("")}<td>38</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="signature-strip">
+          <button class="button primary">${t("signCard")}</button>
+          <button class="button">${t("signature")}</button>
         </div>
       </div>
       <div class="panel">
