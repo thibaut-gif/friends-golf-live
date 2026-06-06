@@ -26,6 +26,8 @@ const state = {
     roundIds: [],
     groupIds: [],
   },
+  groupsGeneratedForCount: 0,
+  courseSearchDrafts: {},
   setup: {
     competitionType: "friends",
     competitionName: "Friends Invitational 2026",
@@ -556,6 +558,11 @@ function setWizardStep(step) {
 
 function updateSetup(field, value) {
   state.setup[field] = value;
+  if (field === "playerCount") {
+    normalizeSetupPlayers();
+    state.groupsGeneratedForCount = 0;
+  }
+  if (field === "roundCount") normalizeRoundCourses();
 }
 
 function normalizeSetupPlayers() {
@@ -635,6 +642,7 @@ function normalizeGroups() {
 
 function setGroupSize(size) {
   state.setup.groupSize = Math.max(2, Math.min(4, Number(size) || 3));
+  state.groupsGeneratedForCount = 0;
   render();
 }
 
@@ -653,8 +661,30 @@ function generateGroupsBySize() {
       markerAssignments: buildMarkerAssignments(playerIndexes),
     });
   }
+  state.groupsGeneratedForCount = state.setupPlayers.length;
   syncFlatMarkerAssignments();
   render();
+}
+
+function ensureGroupsMatchPlayers() {
+  normalizeSetupPlayers();
+  const shouldRegenerate = state.groupsGeneratedForCount !== state.setupPlayers.length || !state.groups.length;
+  if (!shouldRegenerate) return;
+  const size = Math.max(2, Math.min(4, Number(state.setup.groupSize) || 3));
+  const indexes = state.setupPlayers.map((_, index) => index);
+  state.groups = [];
+  for (let index = 0; index < indexes.length; index += size) {
+    const playerIndexes = indexes.slice(index, index + size);
+    state.groups.push({
+      id: `g${state.groups.length + 1}`,
+      name: `${t("group")} ${state.groups.length + 1}`,
+      playerIndexes,
+      teeTime: teeTimeForGroup(state.groups.length),
+      markerAssignments: buildMarkerAssignments(playerIndexes),
+    });
+  }
+  state.groupsGeneratedForCount = state.setupPlayers.length;
+  syncFlatMarkerAssignments();
 }
 
 function normalizeTeams() {
@@ -679,6 +709,7 @@ function updatePlayerSetup(index, field, value) {
 function updateRoundCourse(index, field, value) {
   normalizeRoundCourses();
   state.roundCourses[index][field] = value;
+  if (field === "courseName") state.courseSearchDrafts[index] = value;
 }
 
 function selectCourseForRound(index, courseId) {
@@ -692,6 +723,22 @@ function selectCourseForRound(index, courseId) {
 function requestLocationCourses() {
   state.locationPermission = "granted";
   render();
+}
+
+function searchCourseInput(index, value) {
+  updateRoundCourse(index, "courseName", value);
+  const card = document.querySelector(`[data-course-card="${index}"]`);
+  if (!card) return;
+  const query = String(value || "").toLowerCase();
+  const matches = golfSuggestions.filter((course) => !query || `${course.name} ${course.location}`.toLowerCase().includes(query)).slice(0, 4);
+  const target = card.querySelector("[data-course-suggestions]");
+  if (!target) return;
+  target.innerHTML = matches.map((course) => `
+    <button class="course-option ${state.roundCourses[index].selectedCourseId === course.id ? "active" : ""}" onclick="selectCourseForRound(${index}, '${course.id}'); render();">
+      <strong>${course.name}</strong>
+      <span>${course.location} · Par ${course.par} · ${course.distance}</span>
+    </button>
+  `).join("");
 }
 
 function toggleGroupPlayer(groupIndex, playerIndex) {
@@ -1120,6 +1167,7 @@ function renderWizardStep(step) {
       <p>${t("coursesHelp")}</p>
       <button class="button primary setup-start" onclick="requestLocationCourses()">${icon("flag")}${t("useLocation")}</button>
       <div class="empty-note">${t("locationHelp")} ${state.locationPermission === "granted" ? "Autorisation accordee - propositions proches affichees." : ""}</div>
+      <div class="empty-note">Pour l'instant, la recherche utilise une liste de demonstration. La vraie API golf sera branchee a l'etape suivante.</div>
       <div class="round-course-list">
         ${renderRoundCoursePickers()}
       </div>
@@ -1134,7 +1182,7 @@ function renderWizardStep(step) {
     </div>
   `;
   if (step === "groups") {
-    normalizeGroups();
+    ensureGroupsMatchPlayers();
     return `
       <div class="wizard-body">
         <h2>${t("groupsTitle")}</h2>
@@ -1253,15 +1301,15 @@ function renderRoundCoursePickers() {
     const query = String(roundCourse.courseName || "").toLowerCase();
     const matches = golfSuggestions.filter((course) => !query || `${course.name} ${course.location}`.toLowerCase().includes(query)).slice(0, 4);
     return `
-      <div class="round-course-card">
+      <div class="round-course-card" data-course-card="${index}">
         <div class="section-title">
           <div><h3>${t("round")} ${index + 1}</h3><span>${roundCourse.courseName || t("searchGolf")}</span></div>
         </div>
         <div class="form-grid">
-          <div class="field"><label>${t("searchGolf")}</label><input value="${roundCourse.courseName}" oninput="updateRoundCourse(${index}, 'courseName', this.value); render();" /></div>
+          <div class="field"><label>${t("searchGolf")}</label><input value="${roundCourse.courseName}" oninput="searchCourseInput(${index}, this.value)" /></div>
           <div class="field"><label>${t("tees")}</label><select onchange="updateRoundCourse(${index}, 'tees', this.value)"><option>Jaunes</option><option>Blancs</option><option>Bleus</option><option>Rouges</option></select></div>
         </div>
-        <div class="course-suggestions">
+        <div class="course-suggestions" data-course-suggestions>
           ${(state.locationPermission === "granted" ? matches : matches.slice(0, 3)).map((course) => `
             <button class="course-option ${roundCourse.selectedCourseId === course.id ? "active" : ""}" onclick="selectCourseForRound(${index}, '${course.id}'); render();">
               <strong>${course.name}</strong>
@@ -1637,6 +1685,8 @@ if (typeof module !== "undefined") {
     setPuttsEnabled,
     setGroupSize,
     generateGroupsBySize,
+    ensureGroupsMatchPlayers,
+    searchCourseInput,
     normalizeGroups,
     setActiveScore,
     keypadScore,
