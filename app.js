@@ -14,7 +14,29 @@ const state = {
   view: "dashboard",
   format: "stableford",
   language: "FR",
+  languageMenuOpen: false,
   scoringMode: "marker",
+  wizardOpen: false,
+  wizardStep: 0,
+  setup: {
+    competitionType: "friends",
+    competitionName: "Friends Invitational 2026",
+    startDate: "2026-06-18",
+    endDate: "2026-06-18",
+    playerCount: 4,
+    roundCount: 1,
+    courseName: "Golf de Chantilly - Vineuil",
+    tees: "Jaunes",
+    gameFormula: "stableford-net",
+    liveLeaderboard: true,
+    cardSignature: true,
+  },
+  setupPlayers: [
+    { name: "Sophie Martin", index: 12.4 },
+    { name: "Thomas Keller", index: 8.7 },
+    { name: "Ines Duarte", index: 18.1 },
+    { name: "Marc Lefevre", index: 21.8 },
+  ],
   hole: 7,
   puttsEnabled: false,
   activeScore: { playerKey: "sophie", field: "gross" },
@@ -33,6 +55,299 @@ const languages = [
   { code: "IT", label: "Italiano", flag: "🇮🇹" },
   { code: "DE", label: "Deutsch", flag: "🇩🇪" },
 ];
+
+const translations = {
+  FR: {
+    tagline: "Jouez entre amis. Scores en direct.",
+    homeBadge: "Nouvelle partie entre amis",
+    heroTitle: "Friends Golf Live",
+    heroText: "Créez une partie de golf entre amis, étape par étape, puis saisissez les scores en direct.",
+    home: "Accueil",
+    create: "Créer",
+    createNewGame: "Créer une nouvelle partie",
+    synced: "Synchronisé",
+    step: "Étape",
+    next: "Suivant",
+    back: "Retour",
+    close: "Fermer",
+    validate: "Valider",
+    startScoring: "Démarrer la saisie",
+    competitionTypeTitle: "Quel type de compétition ?",
+    competitionTypeHelp: "Choisissez le cadre, donnez un nom à la partie et indiquez les dates.",
+    type: "Type",
+    competitionName: "Nom de la compétition",
+    startDate: "Date de début",
+    endDate: "Date de fin",
+    friendsCompetition: "Compétition entre amis",
+    privateCompetition: "Compétition privée",
+    golfTrip: "Séjour golfique",
+    playerCountTitle: "Combien de joueurs participent ?",
+    playerCountHelp: "Saisissez le nombre de joueurs. L'écran suivant préparera autant de lignes.",
+    players: "Joueurs",
+    playersTitle: "Saisir les joueurs",
+    playersHelp: "Renseignez le nom et l'index de chaque joueur.",
+    name: "Nom",
+    index: "Index",
+    roundsTitle: "Combien de tours ?",
+    roundsHelp: "Choisissez le nombre de tours de la compétition.",
+    coursesTitle: "Sélectionner le golf",
+    coursesHelp: "Choisissez le parcours et les départs utilisés.",
+    course: "Golf",
+    tees: "Départs",
+    formulaTitle: "Formule de jeu",
+    formulaHelp: "Choisissez la formule de calcul dans la liste.",
+    formula: "Formule",
+    scoringModeTitle: "Mode de saisie",
+    scoringModeHelp: "Choisissez qui saisit les scores pendant la partie.",
+    centralized: "Saisie centralisée",
+    centralizedHelp: "Une seule personne saisit tous les scores.",
+    individual: "Saisie individuelle",
+    individualHelp: "Chaque joueur saisit uniquement ses propres scores.",
+    marker: "Carteur / marqueur",
+    markerHelp: "Chaque joueur saisit la carte officielle et sa propre vérification.",
+    optionsTitle: "Options de partie",
+    optionsHelp: "Activez uniquement ce dont vous avez besoin pour garder la saisie simple.",
+    putts: "Saisie des putts",
+    leaderboardVisible: "Classement visible en direct",
+    signature: "Vérification croisée et signature",
+    score: "Score",
+    cards: "Cartes",
+    ranking: "Classement",
+    security: "Sécurité",
+  },
+  EN: {
+    tagline: "Play with friends. Score live.",
+    homeBadge: "New round with friends",
+    heroTitle: "Friends Golf Live",
+    heroText: "Create a golf game with friends step by step, then enter scores live.",
+    home: "Home",
+    create: "Create",
+    createNewGame: "Create new game",
+    synced: "Synced",
+    step: "Step",
+    next: "Next",
+    back: "Back",
+    close: "Close",
+    validate: "Confirm",
+    startScoring: "Start scoring",
+    competitionTypeTitle: "What type of competition?",
+    competitionTypeHelp: "Choose the setup, name the game and enter the dates.",
+    type: "Type",
+    competitionName: "Competition name",
+    startDate: "Start date",
+    endDate: "End date",
+    friendsCompetition: "Friends competition",
+    privateCompetition: "Private competition",
+    golfTrip: "Golf trip",
+    playerCountTitle: "How many players?",
+    playerCountHelp: "Enter the number of players. The next screen creates the lines.",
+    players: "Players",
+    playersTitle: "Enter players",
+    playersHelp: "Enter each player's name and handicap index.",
+    name: "Name",
+    index: "Index",
+    roundsTitle: "How many rounds?",
+    roundsHelp: "Choose the number of rounds.",
+    coursesTitle: "Select the golf course",
+    coursesHelp: "Choose the course and tees.",
+    course: "Course",
+    tees: "Tees",
+    formulaTitle: "Game format",
+    formulaHelp: "Choose the scoring formula.",
+    formula: "Format",
+    scoringModeTitle: "Scoring mode",
+    scoringModeHelp: "Choose who enters scores during the round.",
+    centralized: "Centralized scoring",
+    centralizedHelp: "One person enters all scores.",
+    individual: "Individual scoring",
+    individualHelp: "Each player enters only their own scores.",
+    marker: "Marker mode",
+    markerHelp: "Each player enters an official card and their own check card.",
+    optionsTitle: "Game options",
+    optionsHelp: "Enable only what you need to keep scoring simple.",
+    putts: "Track putts",
+    leaderboardVisible: "Live leaderboard visible",
+    signature: "Cross-check and signature",
+    score: "Score",
+    cards: "Cards",
+    ranking: "Ranking",
+    security: "Security",
+  },
+  ES: {
+    tagline: "Juega con amigos. Resultados en vivo.",
+    homeBadge: "Nueva partida con amigos",
+    heroTitle: "Friends Golf Live",
+    heroText: "Crea una partida de golf con amigos paso a paso y registra los resultados en vivo.",
+    home: "Inicio",
+    create: "Crear",
+    createNewGame: "Crear nueva partida",
+    synced: "Sincronizado",
+    step: "Paso",
+    next: "Siguiente",
+    back: "Atrás",
+    close: "Cerrar",
+    validate: "Validar",
+    startScoring: "Empezar puntuación",
+    competitionTypeTitle: "¿Qué tipo de competición?",
+    competitionTypeHelp: "Elige el contexto, el nombre y las fechas.",
+    type: "Tipo",
+    competitionName: "Nombre de la competición",
+    startDate: "Fecha inicio",
+    endDate: "Fecha fin",
+    friendsCompetition: "Competición entre amigos",
+    privateCompetition: "Competición privada",
+    golfTrip: "Viaje de golf",
+    playerCountTitle: "¿Cuántos jugadores?",
+    playerCountHelp: "Introduce el número de jugadores.",
+    players: "Jugadores",
+    playersTitle: "Introducir jugadores",
+    playersHelp: "Introduce nombre e índice de cada jugador.",
+    name: "Nombre",
+    index: "Índice",
+    roundsTitle: "¿Cuántas vueltas?",
+    roundsHelp: "Elige el número de vueltas.",
+    coursesTitle: "Seleccionar campo",
+    coursesHelp: "Elige el campo y las salidas.",
+    course: "Campo",
+    tees: "Salidas",
+    formulaTitle: "Formato de juego",
+    formulaHelp: "Elige la fórmula de cálculo.",
+    formula: "Formato",
+    scoringModeTitle: "Modo de registro",
+    scoringModeHelp: "Elige quién introduce los resultados.",
+    centralized: "Registro centralizado",
+    centralizedHelp: "Una persona introduce todos los resultados.",
+    individual: "Registro individual",
+    individualHelp: "Cada jugador introduce sus propios resultados.",
+    marker: "Marcador oficial",
+    markerHelp: "Cada jugador introduce una tarjeta oficial y una de verificación.",
+    optionsTitle: "Opciones",
+    optionsHelp: "Activa solo lo necesario.",
+    putts: "Registrar putts",
+    leaderboardVisible: "Clasificación en vivo",
+    signature: "Verificación y firma",
+    score: "Resultado",
+    cards: "Tarjetas",
+    ranking: "Clasificación",
+    security: "Seguridad",
+  },
+  IT: {
+    tagline: "Gioca con amici. Punteggi live.",
+    homeBadge: "Nuova partita con amici",
+    heroTitle: "Friends Golf Live",
+    heroText: "Crea una partita di golf con amici passo dopo passo e inserisci i punteggi live.",
+    home: "Home",
+    create: "Crea",
+    createNewGame: "Crea nuova partita",
+    synced: "Sincronizzato",
+    step: "Passo",
+    next: "Avanti",
+    back: "Indietro",
+    close: "Chiudi",
+    validate: "Conferma",
+    startScoring: "Avvia punteggi",
+    competitionTypeTitle: "Che tipo di competizione?",
+    competitionTypeHelp: "Scegli contesto, nome e date.",
+    type: "Tipo",
+    competitionName: "Nome competizione",
+    startDate: "Data inizio",
+    endDate: "Data fine",
+    friendsCompetition: "Competizione tra amici",
+    privateCompetition: "Competizione privata",
+    golfTrip: "Viaggio golf",
+    playerCountTitle: "Quanti giocatori?",
+    playerCountHelp: "Inserisci il numero di giocatori.",
+    players: "Giocatori",
+    playersTitle: "Inserisci giocatori",
+    playersHelp: "Inserisci nome e indice di ogni giocatore.",
+    name: "Nome",
+    index: "Indice",
+    roundsTitle: "Quanti giri?",
+    roundsHelp: "Scegli il numero di giri.",
+    coursesTitle: "Seleziona il golf",
+    coursesHelp: "Scegli campo e tee.",
+    course: "Campo",
+    tees: "Tee",
+    formulaTitle: "Formula di gioco",
+    formulaHelp: "Scegli la formula di calcolo.",
+    formula: "Formula",
+    scoringModeTitle: "Modalità punteggi",
+    scoringModeHelp: "Scegli chi inserisce i punteggi.",
+    centralized: "Inserimento centralizzato",
+    centralizedHelp: "Una persona inserisce tutti i punteggi.",
+    individual: "Inserimento individuale",
+    individualHelp: "Ogni giocatore inserisce i propri punteggi.",
+    marker: "Marcatore ufficiale",
+    markerHelp: "Ogni giocatore inserisce scheda ufficiale e verifica.",
+    optionsTitle: "Opzioni partita",
+    optionsHelp: "Attiva solo ciò che serve.",
+    putts: "Inserisci putt",
+    leaderboardVisible: "Classifica live",
+    signature: "Verifica e firma",
+    score: "Punteggio",
+    cards: "Schede",
+    ranking: "Classifica",
+    security: "Sicurezza",
+  },
+  DE: {
+    tagline: "Mit Freunden spielen. Live scoren.",
+    homeBadge: "Neue Runde mit Freunden",
+    heroTitle: "Friends Golf Live",
+    heroText: "Erstelle Schritt für Schritt eine Golfrunde mit Freunden und erfasse Scores live.",
+    home: "Start",
+    create: "Erstellen",
+    createNewGame: "Neue Runde erstellen",
+    synced: "Synchronisiert",
+    step: "Schritt",
+    next: "Weiter",
+    back: "Zurück",
+    close: "Schließen",
+    validate: "Bestätigen",
+    startScoring: "Scoring starten",
+    competitionTypeTitle: "Welche Art Wettbewerb?",
+    competitionTypeHelp: "Wähle Rahmen, Namen und Daten.",
+    type: "Typ",
+    competitionName: "Wettbewerbsname",
+    startDate: "Startdatum",
+    endDate: "Enddatum",
+    friendsCompetition: "Freunde-Wettbewerb",
+    privateCompetition: "Privater Wettbewerb",
+    golfTrip: "Golfreise",
+    playerCountTitle: "Wie viele Spieler?",
+    playerCountHelp: "Gib die Anzahl der Spieler ein.",
+    players: "Spieler",
+    playersTitle: "Spieler eingeben",
+    playersHelp: "Gib Namen und Handicap-Index ein.",
+    name: "Name",
+    index: "Index",
+    roundsTitle: "Wie viele Runden?",
+    roundsHelp: "Wähle die Anzahl der Runden.",
+    coursesTitle: "Golfplatz auswählen",
+    coursesHelp: "Wähle Platz und Abschläge.",
+    course: "Platz",
+    tees: "Abschläge",
+    formulaTitle: "Spielform",
+    formulaHelp: "Wähle die Wertungsform.",
+    formula: "Formel",
+    scoringModeTitle: "Scoring-Modus",
+    scoringModeHelp: "Wähle, wer Scores erfasst.",
+    centralized: "Zentrales Scoring",
+    centralizedHelp: "Eine Person erfasst alle Scores.",
+    individual: "Individuelles Scoring",
+    individualHelp: "Jeder Spieler erfasst nur eigene Scores.",
+    marker: "Marker-Modus",
+    markerHelp: "Jeder Spieler erfasst offizielle Karte und Kontrollkarte.",
+    optionsTitle: "Optionen",
+    optionsHelp: "Aktiviere nur, was nötig ist.",
+    putts: "Putts erfassen",
+    leaderboardVisible: "Live-Rangliste sichtbar",
+    signature: "Prüfung und Signatur",
+    score: "Score",
+    cards: "Karten",
+    ranking: "Rangliste",
+    security: "Sicherheit",
+  },
+};
 
 const players = [
   { name: "Sophie Martin", index: 12.4, club: "Paris Country Club", role: "Marqueur" },
@@ -67,6 +382,10 @@ function initials(name) {
     .toUpperCase();
 }
 
+function t(key) {
+  return translations[state.language]?.[key] || translations.FR[key] || key;
+}
+
 function setView(view) {
   state.view = view;
   render();
@@ -79,6 +398,57 @@ function setFormat(format) {
 
 function setLanguage(language) {
   state.language = language;
+  state.languageMenuOpen = false;
+  render();
+}
+
+function toggleLanguageMenu() {
+  state.languageMenuOpen = !state.languageMenuOpen;
+  render();
+}
+
+function openWizard() {
+  state.wizardOpen = true;
+  state.wizardStep = 0;
+  render();
+}
+
+function closeWizard() {
+  state.wizardOpen = false;
+  render();
+}
+
+function setWizardStep(step) {
+  state.wizardStep = Math.max(0, Math.min(wizardSteps.length - 1, step));
+  render();
+}
+
+function updateSetup(field, value) {
+  state.setup[field] = value;
+}
+
+function normalizeSetupPlayers() {
+  const target = Math.max(1, Math.min(120, Number(state.setup.playerCount) || 1));
+  state.setup.playerCount = target;
+  while (state.setupPlayers.length < target) {
+    state.setupPlayers.push({ name: "", index: "" });
+  }
+  state.setupPlayers = state.setupPlayers.slice(0, target);
+}
+
+function updatePlayerSetup(index, field, value) {
+  normalizeSetupPlayers();
+  state.setupPlayers[index][field] = value;
+}
+
+function nextWizardStep() {
+  normalizeSetupPlayers();
+  if (state.wizardStep === wizardSteps.length - 1) {
+    state.wizardOpen = false;
+    state.view = "score";
+  } else {
+    state.wizardStep += 1;
+  }
   render();
 }
 
@@ -188,13 +558,13 @@ function renderTopbar() {
           <div class="brand-mark">${icons.flag}</div>
           <div>
             <h1>Friends Golf Live</h1>
-            <span>Play with friends. Score live.</span>
+            <span>${t("tagline")}</span>
           </div>
         </div>
         <div class="status">
           <div class="language-menu" aria-label="Langue">
-            <button class="language-current" title="${activeLanguage.label}">${activeLanguage.flag}</button>
-            <div class="language-options">
+            <button class="language-current" title="${activeLanguage.label}" onclick="toggleLanguageMenu()">${activeLanguage.flag}</button>
+            <div class="language-options ${state.languageMenuOpen ? "open" : ""}">
               ${languages.map((language) => `
                 <button class="${state.language === language.code ? "active" : ""}" title="${language.label}" onclick="setLanguage('${language.code}')">
                   <span>${language.flag}</span>
@@ -204,7 +574,7 @@ function renderTopbar() {
             </div>
           </div>
           <span class="pill blue">Staging</span>
-          <span class="pill">Synchronise</span>
+          <span class="pill">${t("synced")}</span>
         </div>
       </div>
     </header>
@@ -213,42 +583,152 @@ function renderTopbar() {
 
 function renderDashboard() {
   return `
-    <section class="hero">
+    <section class="hero home-single">
       <div class="hero-main">
         <div>
-          <span class="pill">Nouvelle partie entre amis</span>
-          <h2>Friends Golf Live</h2>
-          <p>Creer une partie, choisir les amis, les golfs et la formule, puis saisir les scores en direct sans complexite.</p>
+          <span class="pill">${t("homeBadge")}</span>
+          <h2>${t("heroTitle")}</h2>
+          <p>${t("heroText")}</p>
           <div class="hero-actions">
-            <button class="button primary" onclick="setView('create')">${icon("plus")}Creer une partie</button>
-            <button class="button dark" onclick="setView('score')">${icon("score")}Reprendre une saisie</button>
+            <button class="button primary hero-cta" onclick="openWizard()">${icon("plus")}${t("createNewGame")}</button>
           </div>
-        </div>
-        <div class="metric-grid">
-          <div class="metric"><strong>1</strong><span>partie a creer</span></div>
-          <div class="metric"><strong>3 min</strong><span>pour demarrer</span></div>
-          <div class="metric"><strong>Live</strong><span>score et classement</span></div>
         </div>
       </div>
-      <aside class="panel pad">
-        <div class="section-title">
-          <div>
-            <h3>Parcours simple</h3>
-            <span>Dans l'ordre naturel avant le depart</span>
-          </div>
-        </div>
-        <div class="timeline">
-          <div class="step"><span class="step-number">1</span><div><strong>Qui joue ?</strong><span>Nombre d'amis et invitations</span></div><span class="pill">Simple</span></div>
-          <div class="step"><span class="step-number">2</span><div><strong>Ou et comment ?</strong><span>Golfs, tours et formule de calcul</span></div><span class="pill">Guide</span></div>
-          <div class="step"><span class="step-number">3</span><div><strong>On lance</strong><span>Mode de saisie, putts et signature</span></div><span class="pill warning">Live</span></div>
-        </div>
-      </aside>
     </section>
-    <section class="grid three">
-      ${renderLeaderboardPanel()}
-      ${renderFlightsPanel()}
-      ${renderSecurityPanel(true)}
-    </section>
+  `;
+}
+
+const wizardSteps = ["competition", "playerCount", "players", "rounds", "course", "formula", "scoringMode", "options"];
+
+const gameFormulas = [
+  ["stableford-net", "Stableford net"],
+  ["stableford-gross", "Stableford brut"],
+  ["stroke-net", "Stroke play net"],
+  ["stroke-gross", "Stroke play brut"],
+  ["match-play", "Match play"],
+  ["skins", "Skins game"],
+  ["scramble", "Scramble"],
+  ["best-ball", "Best ball"],
+  ["greensome", "Greensome"],
+  ["foursome", "Foursome"],
+  ["custom-points", "Classement par points maison"],
+];
+
+function renderWizard() {
+  if (!state.wizardOpen) return "";
+  const current = wizardSteps[state.wizardStep];
+  return `
+    <div class="wizard-backdrop" role="dialog" aria-modal="true">
+      <section class="wizard-panel">
+        <header class="wizard-head">
+          <span class="pill blue">${t("step")} ${state.wizardStep + 1}/${wizardSteps.length}</span>
+          <button class="button small" onclick="closeWizard()">${t("close")}</button>
+        </header>
+        ${renderWizardStep(current)}
+        <footer class="wizard-actions">
+          <button class="button" onclick="setWizardStep(${state.wizardStep - 1})" ${state.wizardStep === 0 ? "disabled" : ""}>${t("back")}</button>
+          <button class="button primary" onclick="nextWizardStep()">${state.wizardStep === wizardSteps.length - 1 ? t("startScoring") : t("next")}</button>
+        </footer>
+      </section>
+    </div>
+  `;
+}
+
+function renderWizardStep(step) {
+  if (step === "competition") return `
+    <div class="wizard-body">
+      <h2>${t("competitionTypeTitle")}</h2>
+      <p>${t("competitionTypeHelp")}</p>
+      <div class="form-grid">
+        <div class="field full">
+          <label>${t("type")}</label>
+          <select onchange="updateSetup('competitionType', this.value)">
+            <option value="friends" ${state.setup.competitionType === "friends" ? "selected" : ""}>${t("friendsCompetition")}</option>
+            <option value="private" ${state.setup.competitionType === "private" ? "selected" : ""}>${t("privateCompetition")}</option>
+            <option value="trip" ${state.setup.competitionType === "trip" ? "selected" : ""}>${t("golfTrip")}</option>
+          </select>
+        </div>
+        <div class="field full"><label>${t("competitionName")}</label><input value="${state.setup.competitionName}" oninput="updateSetup('competitionName', this.value)" /></div>
+        <div class="field"><label>${t("startDate")}</label><input type="date" value="${state.setup.startDate}" oninput="updateSetup('startDate', this.value)" /></div>
+        <div class="field"><label>${t("endDate")}</label><input type="date" value="${state.setup.endDate}" oninput="updateSetup('endDate', this.value)" /></div>
+      </div>
+    </div>
+  `;
+  if (step === "playerCount") return `
+    <div class="wizard-body">
+      <h2>${t("playerCountTitle")}</h2>
+      <p>${t("playerCountHelp")}</p>
+      <div class="participant-control large">
+        <label for="wizard-player-count">${t("players")}</label>
+        <input id="wizard-player-count" type="number" min="1" max="120" step="1" value="${state.setup.playerCount}" inputmode="numeric" oninput="updateSetup('playerCount', this.value)" />
+      </div>
+    </div>
+  `;
+  if (step === "players") {
+    normalizeSetupPlayers();
+    return `
+      <div class="wizard-body">
+        <h2>${t("playersTitle")}</h2>
+        <p>${t("playersHelp")}</p>
+        <div class="player-editor">
+          ${state.setupPlayers.map((player, index) => `
+            <div class="player-edit-row">
+              <span class="rank">${index + 1}</span>
+              <input aria-label="${t("name")} ${index + 1}" placeholder="${t("name")}" value="${player.name}" oninput="updatePlayerSetup(${index}, 'name', this.value)" />
+              <input aria-label="${t("index")} ${index + 1}" placeholder="${t("index")}" type="number" step="0.1" value="${player.index}" oninput="updatePlayerSetup(${index}, 'index', this.value)" />
+            </div>
+          `).join("")}
+        </div>
+      </div>
+    `;
+  }
+  if (step === "rounds") return `
+    <div class="wizard-body">
+      <h2>${t("roundsTitle")}</h2>
+      <p>${t("roundsHelp")}</p>
+      <div class="round-choice">
+        ${[1, 2, 3, 4].map((round) => `<button class="choice ${Number(state.setup.roundCount) === round ? "active" : ""}" onclick="updateSetup('roundCount', ${round}); render();">${round}</button>`).join("")}
+      </div>
+    </div>
+  `;
+  if (step === "course") return `
+    <div class="wizard-body">
+      <h2>${t("coursesTitle")}</h2>
+      <p>${t("coursesHelp")}</p>
+      <div class="form-grid">
+        <div class="field full"><label>${t("course")}</label><input value="${state.setup.courseName}" oninput="updateSetup('courseName', this.value)" /></div>
+        <div class="field full"><label>${t("tees")}</label><select onchange="updateSetup('tees', this.value)"><option>Jaunes</option><option>Blancs</option><option>Bleus</option><option>Rouges</option></select></div>
+      </div>
+    </div>
+  `;
+  if (step === "formula") return `
+    <div class="wizard-body">
+      <h2>${t("formulaTitle")}</h2>
+      <p>${t("formulaHelp")}</p>
+      <div class="field full"><label>${t("formula")}</label><select onchange="updateSetup('gameFormula', this.value)">${gameFormulas.map(([value, label]) => `<option value="${value}" ${state.setup.gameFormula === value ? "selected" : ""}>${label}</option>`).join("")}</select></div>
+    </div>
+  `;
+  if (step === "scoringMode") return `
+    <div class="wizard-body">
+      <h2>${t("scoringModeTitle")}</h2>
+      <p>${t("scoringModeHelp")}</p>
+      <div class="mode-list">
+        <button class="mode-card ${state.scoringMode === "centralized" ? "active" : ""}" onclick="setScoringMode('centralized')"><strong>${t("centralized")}</strong><span>${t("centralizedHelp")}</span></button>
+        <button class="mode-card ${state.scoringMode === "individual" ? "active" : ""}" onclick="setScoringMode('individual')"><strong>${t("individual")}</strong><span>${t("individualHelp")}</span></button>
+        <button class="mode-card ${state.scoringMode === "marker" ? "active" : ""}" onclick="setScoringMode('marker')"><strong>${t("marker")}</strong><span>${t("markerHelp")}</span></button>
+      </div>
+    </div>
+  `;
+  return `
+    <div class="wizard-body">
+      <h2>${t("optionsTitle")}</h2>
+      <p>${t("optionsHelp")}</p>
+      <div class="switches">
+        <label class="switch"><span>${t("putts")}</span><input type="checkbox" ${state.puttsEnabled ? "checked" : ""} onchange="setPuttsEnabled(this.checked)" /></label>
+        <label class="switch"><span>${t("leaderboardVisible")}</span><input type="checkbox" ${state.setup.liveLeaderboard ? "checked" : ""} onchange="updateSetup('liveLeaderboard', this.checked)" /></label>
+        <label class="switch"><span>${t("signature")}</span><input type="checkbox" ${state.setup.cardSignature ? "checked" : ""} onchange="updateSetup('cardSignature', this.checked)" /></label>
+      </div>
+    </div>
   `;
 }
 
@@ -256,108 +736,12 @@ function renderCreate() {
   return `
     <div class="section-title">
       <div>
-        <h3>Creer une partie</h3>
-        <span>Un assistant court, dans l'ordre ou on se pose les questions</span>
+        <h3>${t("createNewGame")}</h3>
+        <span>${t("heroText")}</span>
       </div>
-      <button class="button primary small" onclick="setView('score')">${icon("flag")}Demarrer</button>
+      <button class="button primary small" onclick="openWizard()">${icon("plus")}${t("createNewGame")}</button>
     </div>
-    <section class="setup-flow">
-      <div class="setup-card">
-        <span class="step-number">1</span>
-        <div>
-          <h3>Nouvelle partie ou competition</h3>
-          <p>Donne un nom clair a l'evenement pour que les amis le reconnaissent.</p>
-          <div class="form-grid">
-            <div class="field full"><label>Nom</label><input value="Friends Invitational 2026" /></div>
-            <div class="field"><label>Type</label><select><option>Partie entre amis</option><option>Competition privee</option><option>Sejour golfique</option></select></div>
-            <div class="field"><label>Date</label><input type="date" value="2026-06-18" /></div>
-          </div>
-        </div>
-      </div>
-      <div class="setup-card">
-        <span class="step-number">2</span>
-        <div>
-          <h3>Combien d'amis ?</h3>
-          <p>Saisis simplement le nombre de joueurs qui participent.</p>
-          <div class="participant-control">
-            <label for="participants-count">Joueurs</label>
-            <input id="participants-count" type="number" min="1" max="120" step="1" value="4" inputmode="numeric" />
-          </div>
-          ${renderPlayersCompact()}
-        </div>
-      </div>
-      <div class="setup-card">
-        <span class="step-number">3</span>
-        <div>
-          <h3>Combien de tours ?</h3>
-          <p>Un tour pour une partie simple, plusieurs tours pour un week-end ou un petit tournoi.</p>
-          <div class="choice-row">
-            <button class="choice active">1 tour</button>
-            <button class="choice">2 tours</button>
-            <button class="choice">3 tours</button>
-            <button class="choice">4 tours</button>
-          </div>
-        </div>
-      </div>
-      <div class="setup-card">
-        <span class="step-number">4</span>
-        <div>
-          <h3>Selectionner les golfs</h3>
-          <p>Choisis les parcours et valide la carte avant le depart.</p>
-          <div class="form-grid">
-            <div class="field"><label>Tour 1</label><input value="Golf de Chantilly - Vineuil" /></div>
-            <div class="field"><label>Departs</label><select><option>Jaunes</option><option>Blancs</option><option>Bleus</option><option>Rouges</option></select></div>
-          </div>
-        </div>
-      </div>
-      <div class="setup-card">
-        <span class="step-number">5</span>
-        <div>
-          <h3>Formule de calcul</h3>
-          <p>L'app calcule le classement automatiquement selon la formule choisie.</p>
-          <div class="choice-row">
-            <button class="choice active" onclick="setFormat('stableford')">Stableford net</button>
-            <button class="choice" onclick="setFormat('net')">Stroke net</button>
-            <button class="choice" onclick="setFormat('brut')">Stroke brut</button>
-          </div>
-        </div>
-      </div>
-      <div class="setup-card">
-        <span class="step-number">6</span>
-        <div>
-          <h3>Mode de saisie</h3>
-          <p>Choisis qui saisit les scores pendant la partie.</p>
-          <div class="mode-list">
-            <button class="mode-card ${state.scoringMode === "centralized" ? "active" : ""}" onclick="setScoringMode('centralized')">
-              <strong>Saisie centralisee</strong>
-              <span>Une personne saisit tous les scores de la partie.</span>
-            </button>
-            <button class="mode-card ${state.scoringMode === "individual" ? "active" : ""}" onclick="setScoringMode('individual')">
-              <strong>Saisie individuelle</strong>
-              <span>Chaque joueur saisit uniquement ses propres scores.</span>
-            </button>
-            <button class="mode-card ${state.scoringMode === "marker" ? "active" : ""}" onclick="setScoringMode('marker')">
-              <strong>Carteur / marqueur</strong>
-              <span>Chaque joueur saisit sa carte officielle et sa carte de verification.</span>
-            </button>
-          </div>
-        </div>
-      </div>
-      <div class="setup-card">
-        <span class="step-number">7</span>
-        <div>
-          <h3>Lancer la partie</h3>
-          <p>Compose les equipes, choisis le marqueur, active les putts si besoin et prevois la signature des cartes.</p>
-          <div class="switches">
-            <label class="switch"><span>Saisie des putts</span><input type="checkbox" ${state.puttsEnabled ? "checked" : ""} onchange="setPuttsEnabled(this.checked)" /></label>
-            <label class="switch"><span>Classement visible en direct</span><input type="checkbox" checked /></label>
-            <label class="switch"><span>Verification croisee et signature</span><input type="checkbox" checked /></label>
-          </div>
-          ${renderFlightsCompact()}
-          <button class="button primary setup-start" onclick="setView('score')">${icon("flag")}Demarrer la saisie</button>
-        </div>
-      </div>
-    </section>
+    <div class="panel pad"><button class="button primary setup-start" onclick="openWizard()">${icon("plus")}${t("createNewGame")}</button></div>
   `;
 }
 
@@ -647,12 +1031,12 @@ function renderSecurityPanel(compact) {
 
 function renderTabs() {
   const tabs = [
-    ["dashboard", "home", "Accueil"],
-    ["create", "plus", "Creer"],
-    ["score", "score", "Score"],
-    ["cards", "shield", "Cartes"],
-    ["leaderboard", "trophy", "Classement"],
-    ["security", "shield", "Securite"],
+    ["dashboard", "home", t("home")],
+    ["create", "plus", t("create")],
+    ["score", "score", t("score")],
+    ["cards", "shield", t("cards")],
+    ["leaderboard", "trophy", t("ranking")],
+    ["security", "shield", t("security")],
   ];
 
   return `
@@ -687,6 +1071,7 @@ function render() {
         ${renderCurrentView()}
       </main>
       ${renderTabs()}
+      ${renderWizard()}
     </div>
   `;
 }
