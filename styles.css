@@ -759,12 +759,13 @@ button {
 
 .player-edit-row {
   display: grid;
-  grid-template-columns: 34px minmax(0, 1fr) 90px;
+  grid-template-columns: 34px minmax(130px, 1.2fr) 80px minmax(150px, 1fr) 130px minmax(150px, 1fr);
   gap: 8px;
   align-items: center;
 }
 
-.player-edit-row input {
+.player-edit-row input,
+.player-edit-row select {
   width: 100%;
   min-height: 44px;
   padding: 0 10px;
@@ -772,6 +773,49 @@ button {
   border-radius: 8px;
   background: white;
   color: var(--ink);
+}
+
+.onboarding-summary {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid #b8d4c6;
+  border-radius: 8px;
+  background: var(--mint);
+}
+
+.onboarding-summary.warning {
+  border-color: #efd28f;
+  background: var(--amber-soft);
+}
+
+.onboarding-summary span {
+  color: var(--muted);
+  font-weight: 750;
+}
+
+.invite-quota-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.invite-quota-card {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+}
+
+.invite-quota-card strong,
+.invite-quota-card span {
+  display: block;
+}
+
+.invite-quota-card span {
+  margin-top: 4px;
+  color: var(--green);
+  font-weight: 900;
 }
 
 .round-choice {
@@ -2182,9 +2226,14 @@ button {
 
   .player-edit-row {
     grid-template-columns: 30px minmax(0, 1fr);
+    padding: 10px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #fbfcfa;
   }
 
-  .player-edit-row input:last-child {
+  .player-edit-row input,
+  .player-edit-row select {
     grid-column: 2;
   }
 

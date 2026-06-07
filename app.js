@@ -55,10 +55,10 @@ const state = {
   },
   locationPermission: "idle",
   setupPlayers: [
-    { name: "Sophie Martin", index: 12.4 },
-    { name: "Thomas Keller", index: 8.7 },
-    { name: "Ines Duarte", index: 18.1 },
-    { name: "Marc Lefevre", index: 21.8 },
+    { name: "Sophie Martin", index: 12.4, email: "sophie@example.com", accountStatus: "named", invitedBy: 0 },
+    { name: "Thomas Keller", index: 8.7, email: "thomas@example.com", accountStatus: "named", invitedBy: 1 },
+    { name: "Ines Duarte", index: 18.1, email: "ines@example.com", accountStatus: "guest", invitedBy: 0 },
+    { name: "Marc Lefevre", index: 21.8, email: "marc@example.com", accountStatus: "guest", invitedBy: 1 },
   ],
   roundCourses: [
     { courseName: "Golf de Chantilly - Vineuil", tees: "Jaunes", selectedCourseId: "chantilly-vineuil" },
@@ -682,6 +682,47 @@ function allRoundCoursesSelected() {
   return state.roundCourses.every((course) => Boolean(course.selectedCourseId && course.courseName));
 }
 
+function namedAccountPlayers() {
+  normalizeSetupPlayers();
+  return state.setupPlayers
+    .map((player, index) => ({ ...player, index }))
+    .filter((player) => player.accountStatus === "named");
+}
+
+function invitationCountsByNamedAccount() {
+  const counts = new Map();
+  namedAccountPlayers().forEach((player) => counts.set(player.index, 0));
+  state.setupPlayers.forEach((player) => {
+    if (player.accountStatus === "guest") {
+      const inviter = Number(player.invitedBy);
+      counts.set(inviter, (counts.get(inviter) || 0) + 1);
+    }
+  });
+  return counts;
+}
+
+function validateOnboardingRules() {
+  normalizeSetupPlayers();
+  const named = namedAccountPlayers();
+  const counts = invitationCountsByNamedAccount();
+  const overloaded = [...counts.entries()].filter(([, count]) => count > 12);
+  const guestsWithoutEmail = state.setupPlayers.filter((player) => player.accountStatus === "guest" && !String(player.email || "").trim());
+  if (named.length < 1) {
+    return { valid: false, message: "Ajoutez au moins 1 compte nomme pour creer la competition et envoyer les invitations." };
+  }
+  if (isRyderCupMode() && named.length < 2) {
+    return { valid: false, message: "Une Ryder Cup doit avoir au moins 2 comptes nommes pour onboarder les autres joueurs." };
+  }
+  if (overloaded.length) {
+    const names = overloaded.map(([index]) => playerName(index)).join(", ");
+    return { valid: false, message: `Chaque compte nomme peut inviter 12 joueurs maximum. A corriger : ${names}.` };
+  }
+  if (guestsWithoutEmail.length) {
+    return { valid: false, message: "Renseignez un email pour chaque joueur invite afin d'envoyer le lien magique." };
+  }
+  return { valid: true, message: `${named.length} compte(s) nomme(s), ${state.setupPlayers.length - named.length} invite(s) email.` };
+}
+
 function setLanguage(language) {
   state.language = language;
   state.languageMenuOpen = false;
@@ -736,9 +777,20 @@ function normalizeSetupPlayers() {
   const target = Math.max(1, Math.min(120, Number(state.setup.playerCount) || 1));
   state.setup.playerCount = target;
   while (state.setupPlayers.length < target) {
-    state.setupPlayers.push({ name: "", index: "" });
+    state.setupPlayers.push({ name: "", index: "", email: "", accountStatus: "guest", invitedBy: 0 });
   }
   state.setupPlayers = state.setupPlayers.slice(0, target);
+  state.setupPlayers = state.setupPlayers.map((player, index) => ({
+    name: player.name || "",
+    index: player.index ?? "",
+    email: player.email || "",
+    accountStatus: player.accountStatus || (index < 2 && isRyderCupMode() ? "named" : "guest"),
+    invitedBy: Number.isFinite(Number(player.invitedBy)) ? Number(player.invitedBy) : 0,
+  }));
+  if (isRyderCupMode() && state.setupPlayers.length >= 2) {
+    state.setupPlayers[0].accountStatus = state.setupPlayers[0].accountStatus || "named";
+    state.setupPlayers[1].accountStatus = state.setupPlayers[1].accountStatus || "named";
+  }
 }
 
 function normalizeRoundCourses() {
@@ -1360,6 +1412,14 @@ async function nextWizardStep() {
     render();
     return;
   }
+  if (currentStep === "players") {
+    const onboarding = validateOnboardingRules();
+    if (!onboarding.valid) {
+      state.saveStatus = { type: "warning", message: onboarding.message };
+      render();
+      return;
+    }
+  }
   if (state.wizardStep === steps.length - 1) {
     await saveCompetitionToSupabase();
     state.wizardOpen = false;
@@ -1679,16 +1739,39 @@ function renderWizardStep(step) {
   `;
   if (step === "players") {
     normalizeSetupPlayers();
+    const named = namedAccountPlayers();
+    const counts = invitationCountsByNamedAccount();
+    const onboarding = validateOnboardingRules();
     return `
       <div class="wizard-body">
         <h2>${t("playersTitle")}</h2>
-        <p>${t("playersHelp")}</p>
+        <p>${t("playersHelp")} Un compte nomme peut onboarder 12 joueurs maximum par email.</p>
+        <div class="onboarding-summary ${onboarding.valid ? "valid" : "warning"}">
+          <strong>${onboarding.valid ? "Onboarding pret" : "A corriger"}</strong>
+          <span>${onboarding.message}</span>
+        </div>
+        <div class="invite-quota-grid">
+          ${named.length ? named.map((player) => `
+            <div class="invite-quota-card">
+              <strong>${player.name || `${t("players")} ${player.index + 1}`}</strong>
+              <span>${counts.get(player.index) || 0}/12 invites</span>
+            </div>
+          `).join("") : `<div class="empty-note">Ajoutez au moins un compte nomme pour envoyer des invitations.</div>`}
+        </div>
         <div class="player-editor">
           ${state.setupPlayers.map((player, index) => `
             <div class="player-edit-row">
               <span class="rank">${index + 1}</span>
               <input aria-label="${t("name")} ${index + 1}" placeholder="${t("name")}" value="${player.name}" oninput="updatePlayerSetup(${index}, 'name', this.value)" />
               <input aria-label="${t("index")} ${index + 1}" placeholder="${t("index")}" type="number" step="0.1" value="${player.index}" oninput="updatePlayerSetup(${index}, 'index', this.value)" />
+              <input aria-label="Email ${index + 1}" placeholder="email invitation" type="email" value="${player.email || ""}" oninput="updatePlayerSetup(${index}, 'email', this.value)" />
+              <select aria-label="Statut ${index + 1}" onchange="updatePlayerSetup(${index}, 'accountStatus', this.value); render();">
+                <option value="guest" ${player.accountStatus === "guest" ? "selected" : ""}>Invite email</option>
+                <option value="named" ${player.accountStatus === "named" ? "selected" : ""}>Compte nomme</option>
+              </select>
+              <select aria-label="Invite par ${index + 1}" ${player.accountStatus === "named" ? "disabled" : ""} onchange="updatePlayerSetup(${index}, 'invitedBy', this.value); render();">
+                ${named.map((account) => `<option value="${account.index}" ${Number(player.invitedBy) === account.index ? "selected" : ""}>Invite par ${account.name || `${t("players")} ${account.index + 1}`}</option>`).join("")}
+              </select>
             </div>
           `).join("")}
         </div>
