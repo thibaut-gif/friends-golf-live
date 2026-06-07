@@ -823,16 +823,17 @@ button {
 
 .scorecard-table {
   width: 100%;
-  min-width: 680px;
+  min-width: 1040px;
   border-collapse: collapse;
 }
 
 .scorecard-table th,
 .scorecard-table td {
-  padding: 10px;
+  padding: 8px;
   border-bottom: 1px solid var(--line);
   border-right: 1px solid var(--line);
   text-align: center;
+  font-size: 13px;
 }
 
 .scorecard-table th:first-child,
@@ -845,6 +846,14 @@ button {
   background: var(--amber-soft);
   color: #7a500a;
   font-weight: 950;
+}
+
+.score-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px;
+  border-top: 1px solid var(--line);
 }
 
 .signature-strip {

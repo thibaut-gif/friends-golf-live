@@ -28,6 +28,9 @@ const state = {
   },
   groupsGeneratedForCount: 0,
   courseSearchDrafts: {},
+  courseSearchResults: {},
+  courseApiStatus: {},
+  courseSearchTimers: {},
   setup: {
     competitionType: "friends",
     competitionName: "Friends Invitational 2026",
@@ -477,6 +480,36 @@ const flights = [
   { time: "09:30", marker: "Nora", names: "Nora, Hugo, Samir", status: "Depart pret" },
 ];
 
+const sampleScorecard = {
+  player: "Thomas Keller",
+  marker: "Sophie Martin",
+  handicap: 22,
+  course: "Golf de Chantilly - Vineuil",
+  tee: "Jaunes",
+  rating: 70.8,
+  slope: 132,
+  holes: [
+    { hole: 1, par: 4, strokeIndex: 7, gross: 5, checkGross: 5 },
+    { hole: 2, par: 5, strokeIndex: 3, gross: 6, checkGross: 6 },
+    { hole: 3, par: 3, strokeIndex: 15, gross: 4, checkGross: 4 },
+    { hole: 4, par: 4, strokeIndex: 1, gross: 5, checkGross: 5 },
+    { hole: 5, par: 4, strokeIndex: 11, gross: 5, checkGross: 5 },
+    { hole: 6, par: 4, strokeIndex: 5, gross: 4, checkGross: 5 },
+    { hole: 7, par: 5, strokeIndex: 9, gross: 6, checkGross: 6 },
+    { hole: 8, par: 3, strokeIndex: 17, gross: 4, checkGross: 4 },
+    { hole: 9, par: 4, strokeIndex: 13, gross: 5, checkGross: 5 },
+    { hole: 10, par: 4, strokeIndex: 8, gross: 5, checkGross: 5 },
+    { hole: 11, par: 5, strokeIndex: 2, gross: 7, checkGross: 7 },
+    { hole: 12, par: 3, strokeIndex: 18, gross: 4, checkGross: 4 },
+    { hole: 13, par: 4, strokeIndex: 4, gross: 5, checkGross: 5 },
+    { hole: 14, par: 4, strokeIndex: 14, gross: 6, checkGross: 6 },
+    { hole: 15, par: 5, strokeIndex: 6, gross: 6, checkGross: 6 },
+    { hole: 16, par: 4, strokeIndex: 12, gross: 5, checkGross: 5 },
+    { hole: 17, par: 3, strokeIndex: 16, gross: 4, checkGross: 4 },
+    { hole: 18, par: 4, strokeIndex: 10, gross: 5, checkGross: 5 },
+  ],
+};
+
 function icon(name) {
   return `<span class="icon" aria-hidden="true">${icons[name]}</span>`;
 }
@@ -516,6 +549,55 @@ function getSupabaseClient() {
     window.friendsGolfLiveSupabase = window.supabase.createClient(config.url, config.publishableKey);
   }
   return window.friendsGolfLiveSupabase;
+}
+
+function getSupabaseFunctionUrl(functionName) {
+  const config = getSupabaseConfig();
+  if (!config?.url) return null;
+  return `${config.url.replace(/\/$/, "")}/functions/v1/${functionName}`;
+}
+
+function strokesReceivedForHole(playingHandicap, strokeIndex) {
+  const handicap = Math.max(0, Number(playingHandicap) || 0);
+  const base = Math.floor(handicap / 18);
+  const remainder = handicap % 18;
+  return base + (strokeIndex <= remainder ? 1 : 0);
+}
+
+function stablefordPoints(score, par) {
+  if (score === "X" || score === "" || score === null || score === undefined) return 0;
+  const numericScore = Number(score);
+  if (!Number.isFinite(numericScore)) return 0;
+  return Math.max(0, par + 2 - numericScore);
+}
+
+function scorecardRows(card = sampleScorecard) {
+  return card.holes.map((hole) => {
+    const strokes = strokesReceivedForHole(card.handicap, hole.strokeIndex);
+    const netScore = Number(hole.gross) - strokes;
+    return {
+      ...hole,
+      strokes,
+      netScore,
+      grossPoints: stablefordPoints(hole.gross, hole.par),
+      netPoints: stablefordPoints(netScore, hole.par),
+      mismatch: hole.gross !== hole.checkGross,
+    };
+  });
+}
+
+function scorecardTotals(rows) {
+  return rows.reduce(
+    (total, row) => ({
+      par: total.par + row.par,
+      gross: total.gross + Number(row.gross || 0),
+      checkGross: total.checkGross + Number(row.checkGross || 0),
+      strokes: total.strokes + row.strokes,
+      grossPoints: total.grossPoints + row.grossPoints,
+      netPoints: total.netPoints + row.netPoints,
+    }),
+    { par: 0, gross: 0, checkGross: 0, strokes: 0, grossPoints: 0, netPoints: 0 }
+  );
 }
 
 function setView(view) {
@@ -714,10 +796,12 @@ function updateRoundCourse(index, field, value) {
 
 function selectCourseForRound(index, courseId) {
   normalizeRoundCourses();
-  const course = golfSuggestions.find((item) => item.id === courseId);
+  const course = [...golfSuggestions, ...(state.courseSearchResults[index] || [])].find((item) => item.id === courseId);
   if (!course) return;
   state.roundCourses[index].selectedCourseId = course.id;
   state.roundCourses[index].courseName = course.name;
+  if (course.tees?.length) state.roundCourses[index].availableTees = course.tees;
+  if (course.rawData) state.roundCourses[index].rawData = course.rawData;
 }
 
 function requestLocationCourses() {
@@ -729,16 +813,69 @@ function searchCourseInput(index, value) {
   updateRoundCourse(index, "courseName", value);
   const card = document.querySelector(`[data-course-card="${index}"]`);
   if (!card) return;
-  const query = String(value || "").toLowerCase();
-  const matches = golfSuggestions.filter((course) => !query || `${course.name} ${course.location}`.toLowerCase().includes(query)).slice(0, 4);
   const target = card.querySelector("[data-course-suggestions]");
-  if (!target) return;
-  target.innerHTML = matches.map((course) => `
+  const status = card.querySelector("[data-course-api-status]");
+  if (target) target.innerHTML = renderCourseSuggestions(index);
+  if (status) status.textContent = "Recherche locale, puis API...";
+  clearTimeout(state.courseSearchTimers[index]);
+  state.courseSearchTimers[index] = setTimeout(() => loadGolfApiResults(index, value), 450);
+}
+
+function courseMatches(index) {
+  const roundCourse = state.roundCourses[index] || {};
+  const query = String(roundCourse.courseName || "").toLowerCase();
+  const apiResults = state.courseSearchResults[index] || [];
+  if (apiResults.length) return apiResults;
+  return golfSuggestions.filter((course) => !query || `${course.name} ${course.location}`.toLowerCase().includes(query)).slice(0, 4);
+}
+
+function renderCourseSuggestions(index) {
+  return courseMatches(index).map((course) => `
     <button class="course-option ${state.roundCourses[index].selectedCourseId === course.id ? "active" : ""}" onclick="selectCourseForRound(${index}, '${course.id}'); render();">
       <strong>${course.name}</strong>
-      <span>${course.location} · Par ${course.par} · ${course.distance}</span>
+      <span>${course.location} · Par ${course.par || "-"} · ${course.distance || "API"}</span>
     </button>
   `).join("");
+}
+
+async function loadGolfApiResults(index, value) {
+  const query = String(value || "").trim();
+  const status = document.querySelector(`[data-course-card="${index}"] [data-course-api-status]`);
+  if (query.length < 2) {
+    state.courseApiStatus[index] = "Tapez au moins 2 lettres pour interroger l'API.";
+    if (status) status.textContent = state.courseApiStatus[index];
+    return;
+  }
+  const functionName = getSupabaseConfig()?.golfSearchFunction || "search-golf-courses";
+  const functionUrl = getSupabaseFunctionUrl(functionName);
+  const config = getSupabaseConfig();
+  if (!functionUrl || !config?.publishableKey) {
+    state.courseApiStatus[index] = "Fonction API golf non configuree. Resultats de demonstration.";
+    if (status) status.textContent = state.courseApiStatus[index];
+    return;
+  }
+  state.courseApiStatus[index] = "Recherche API golf...";
+  if (status) status.textContent = state.courseApiStatus[index];
+  try {
+    const response = await fetch(`${functionUrl}?query=${encodeURIComponent(query)}`, {
+      headers: {
+        apikey: config.publishableKey,
+        Authorization: `Bearer ${config.publishableKey}`,
+      },
+    });
+    if (!response.ok) throw new Error(`API ${response.status}`);
+    const payload = await response.json();
+    state.courseSearchResults[index] = Array.isArray(payload.courses) ? payload.courses : [];
+    state.courseApiStatus[index] = state.courseSearchResults[index].length ? "Resultats GolfCourseAPI" : "Aucun golf trouve dans l'API.";
+  } catch (error) {
+    state.courseSearchResults[index] = [];
+    state.courseApiStatus[index] = "API golf indisponible pour le moment. Resultats de demonstration.";
+  }
+  const card = document.querySelector(`[data-course-card="${index}"]`);
+  const target = card?.querySelector("[data-course-suggestions]");
+  const nextStatus = card?.querySelector("[data-course-api-status]");
+  if (target) target.innerHTML = renderCourseSuggestions(index);
+  if (nextStatus) nextStatus.textContent = state.courseApiStatus[index];
 }
 
 function toggleGroupPlayer(groupIndex, playerIndex) {
@@ -1167,7 +1304,7 @@ function renderWizardStep(step) {
       <p>${t("coursesHelp")}</p>
       <button class="button primary setup-start" onclick="requestLocationCourses()">${icon("flag")}${t("useLocation")}</button>
       <div class="empty-note">${t("locationHelp")} ${state.locationPermission === "granted" ? "Autorisation accordee - propositions proches affichees." : ""}</div>
-      <div class="empty-note">Pour l'instant, la recherche utilise une liste de demonstration. La vraie API golf sera branchee a l'etape suivante.</div>
+      <div class="empty-note">La recherche interroge GolfCourseAPI via Supabase quand la fonction est deployee. Sinon, l'app garde une liste de secours.</div>
       <div class="round-course-list">
         ${renderRoundCoursePickers()}
       </div>
@@ -1298,8 +1435,6 @@ function renderWizardStep(step) {
 function renderRoundCoursePickers() {
   normalizeRoundCourses();
   return state.roundCourses.map((roundCourse, index) => {
-    const query = String(roundCourse.courseName || "").toLowerCase();
-    const matches = golfSuggestions.filter((course) => !query || `${course.name} ${course.location}`.toLowerCase().includes(query)).slice(0, 4);
     return `
       <div class="round-course-card" data-course-card="${index}">
         <div class="section-title">
@@ -1309,13 +1444,9 @@ function renderRoundCoursePickers() {
           <div class="field"><label>${t("searchGolf")}</label><input value="${roundCourse.courseName}" oninput="searchCourseInput(${index}, this.value)" /></div>
           <div class="field"><label>${t("tees")}</label><select onchange="updateRoundCourse(${index}, 'tees', this.value)"><option>Jaunes</option><option>Blancs</option><option>Bleus</option><option>Rouges</option></select></div>
         </div>
+        <div class="empty-note" data-course-api-status>${state.courseApiStatus[index] || "Recherche GolfCourseAPI en attente."}</div>
         <div class="course-suggestions" data-course-suggestions>
-          ${(state.locationPermission === "granted" ? matches : matches.slice(0, 3)).map((course) => `
-            <button class="course-option ${roundCourse.selectedCourseId === course.id ? "active" : ""}" onclick="selectCourseForRound(${index}, '${course.id}'); render();">
-              <strong>${course.name}</strong>
-              <span>${course.location} · Par ${course.par} · ${course.distance}</span>
-            </button>
-          `).join("")}
+          ${renderCourseSuggestions(index)}
         </div>
       </div>
     `;
@@ -1480,25 +1611,43 @@ function renderSecurity() {
 }
 
 function renderCards() {
+  const rows = scorecardRows();
+  const totals = scorecardTotals(rows);
+  const cells = (field, formatter = (value) => value) => rows.map((row) => `<td class="${row.mismatch && ["gross", "checkGross"].includes(field) ? "mismatch-cell" : ""}">${formatter(row[field], row)}</td>`).join("");
   return `
     <div class="section-title">
       <div>
         <h3>${t("digitalScorecard")}</h3>
-        <span>Comparer, corriger, signer, puis verrouiller les scores</span>
+        <span>Comparer, corriger, calculer les points bruts et nets, puis signer</span>
       </div>
       <span class="pill warning">2 ecarts</span>
     </div>
     <section class="grid two">
       <div class="panel digital-card">
-        <div class="panel-head"><div><h3>Thomas Keller</h3><span>${t("officialCard")} · ${t("checkCard")}</span></div></div>
+        <div class="panel-head">
+          <div>
+            <h3>${sampleScorecard.player}</h3>
+            <span>${sampleScorecard.course} · ${sampleScorecard.tee} · Hcp ${sampleScorecard.handicap} · Slope ${sampleScorecard.slope}</span>
+          </div>
+        </div>
         <div class="scorecard-table-wrap">
           <table class="scorecard-table">
-            <thead><tr><th>Trou</th>${[1, 2, 3, 4, 5, 6, 7, 8, 9].map((hole) => `<th>${hole}</th>`).join("")}<th>Total</th></tr></thead>
+            <thead><tr><th>Trou</th>${rows.map((row) => `<th>${row.hole}</th>`).join("")}<th>Total</th></tr></thead>
             <tbody>
-              <tr><td>${t("officialCard")}</td>${[4, 5, 3, 4, 5, 4, 4, 3, 5].map((score, index) => `<td class="${index === 5 ? "mismatch-cell" : ""}">${score}</td>`).join("")}<td>37</td></tr>
-              <tr><td>${t("checkCard")}</td>${[4, 5, 3, 4, 5, 5, 4, 3, 5].map((score, index) => `<td class="${index === 5 ? "mismatch-cell" : ""}">${score}</td>`).join("")}<td>38</td></tr>
+              <tr><td>Par</td>${cells("par")}<td>${totals.par}</td></tr>
+              <tr><td>Index</td>${cells("strokeIndex")}<td>-</td></tr>
+              <tr><td>${t("officialCard")}</td>${cells("gross")}<td>${totals.gross}</td></tr>
+              <tr><td>${t("checkCard")}</td>${cells("checkGross")}<td>${totals.checkGross}</td></tr>
+              <tr><td>Coups rendus</td>${cells("strokes", (value) => value ? `+${value}` : "-")}<td>${totals.strokes}</td></tr>
+              <tr><td>Points bruts</td>${cells("grossPoints")}<td>${totals.grossPoints}</td></tr>
+              <tr><td>Points nets</td>${cells("netPoints")}<td>${totals.netPoints}</td></tr>
             </tbody>
           </table>
+        </div>
+        <div class="score-summary">
+          <span class="pill blue">Brut ${totals.grossPoints} pts</span>
+          <span class="pill">Net ${totals.netPoints} pts</span>
+          <span class="pill warning">${totals.strokes} coups rendus</span>
         </div>
         <div class="signature-strip">
           <button class="button primary">${t("signCard")}</button>
@@ -1506,11 +1655,13 @@ function renderCards() {
         </div>
       </div>
       <div class="panel">
-        <div class="panel-head"><div><h3>Signature</h3><span>Validation numerique horodatee</span></div></div>
+        <div class="panel-head"><div><h3>Calcul net</h3><span>Repartition des coups rendus par index de trou</span></div></div>
         <div class="panel pad signature-list">
+          <div class="signature-row"><div><strong>Handicap ${sampleScorecard.handicap}</strong><span>1 coup rendu sur les 18 trous, puis un 2e coup sur les 4 trous les plus difficiles.</span></div><span class="pill">${totals.strokes}</span></div>
+          <div class="signature-row"><div><strong>Points bruts</strong><span>Calcul Stableford sans coups rendus.</span></div><span class="pill blue">${totals.grossPoints}</span></div>
+          <div class="signature-row"><div><strong>Points nets</strong><span>Calcul Stableford apres deduction des coups rendus.</span></div><span class="pill warning">${totals.netPoints}</span></div>
           <div class="signature-row"><div><strong>Signature joueur</strong><span>Thomas confirme sa carte apres correction.</span></div><button class="button small primary">Signer</button></div>
-          <div class="signature-row"><div><strong>Signature marqueur</strong><span>Sophie confirme les scores officiels saisis.</span></div><button class="button small">En attente</button></div>
-          <div class="signature-row locked"><div><strong>Verrouillage</strong><span>La carte devient officielle apres les deux signatures.</span></div><span class="pill blue">Pret</span></div>
+          <div class="signature-row"><div><strong>Signature marqueur</strong><span>${sampleScorecard.marker} confirme les scores officiels saisis.</span></div><button class="button small">En attente</button></div>
         </div>
       </div>
     </section>
@@ -1688,6 +1839,10 @@ if (typeof module !== "undefined") {
     ensureGroupsMatchPlayers,
     searchCourseInput,
     normalizeGroups,
+    strokesReceivedForHole,
+    stablefordPoints,
+    scorecardRows,
+    scorecardTotals,
     setActiveScore,
     keypadScore,
     clearActiveScore,
