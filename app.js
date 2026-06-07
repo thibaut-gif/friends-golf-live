@@ -24,10 +24,12 @@ const state = {
   savingSetup: false,
   saveStatus: null,
   supabaseIds: {
+    userId: null,
     competitionId: null,
     playerIds: [],
     roundIds: [],
     groupIds: [],
+    invitationIds: [],
   },
   groupsGeneratedForCount: 0,
   courseSearchDrafts: {},
@@ -97,6 +99,8 @@ const state = {
     password: "",
     role: "Organisateur",
     signedIn: false,
+    authProvider: "local",
+    userId: "",
     sessionExpiresAt: "",
   },
   markerAssignments: [
@@ -714,20 +718,94 @@ function startAccountSession() {
   persistLocalSession();
 }
 
-function loginAccount() {
+function fullAccountName() {
+  return [state.account.firstName, state.account.lastName].filter(Boolean).join(" ").trim() || state.account.email || "Joueur FGL";
+}
+
+function applySupabaseUser(user) {
+  if (!user) return;
+  state.account.userId = user.id;
+  state.account.email = user.email || state.account.email;
+  state.account.authProvider = "supabase";
+  state.supabaseIds.userId = user.id;
+}
+
+async function loadSupabaseSession() {
+  const client = getSupabaseClient();
+  if (!client?.auth) return null;
+  const { data, error } = await client.auth.getSession();
+  if (error || !data?.session?.user) return null;
+  applySupabaseUser(data.session.user);
+  startAccountSession();
+  return data.session.user;
+}
+
+async function upsertSupabaseProfile(user) {
+  const client = getSupabaseClient();
+  if (!client || !user?.id) return false;
+  const profilePayload = {
+    id: user.id,
+    display_name: fullAccountName(),
+    first_name: state.account.firstName || null,
+    last_name: state.account.lastName || null,
+    country: state.account.country || null,
+    handicap: state.account.handicap === "" ? null : Number(state.account.handicap),
+    license_number: state.account.licenseNumber || null,
+    preferred_language: state.language || "FR",
+  };
+  const { error } = await client.from("profiles").upsert(profilePayload, { onConflict: "id" });
+  if (error) throw error;
+  return true;
+}
+
+async function ensureSupabaseUser() {
+  const client = getSupabaseClient();
+  if (!client?.auth) return null;
+  const current = await loadSupabaseSession();
+  if (current) return current;
+  const email = String(state.account.email || "").trim();
+  const password = String(state.account.password || "").trim();
+  if (!email || !password) throw new Error("Renseignez email et mot de passe.");
+  const { data, error } = await client.auth.signInWithPassword({ email, password });
+  if (error) throw error;
+  applySupabaseUser(data.user);
+  startAccountSession();
+  return data.user;
+}
+
+async function loginAccount() {
   if (!String(state.account.email || "").trim() || !String(state.account.password || "").trim()) {
     state.saveStatus = { type: "warning", message: "Renseignez email et mot de passe pour ouvrir la session." };
     render();
     return;
   }
-  startAccountSession();
-  state.saveStatus = { type: "success", message: "Session locale ouverte jusqu'a la fin de la competition, avec 24h minimum." };
+  const client = getSupabaseClient();
+  if (!client?.auth) {
+    startAccountSession();
+    state.saveStatus = { type: "warning", message: "Session locale ouverte. Supabase Auth n'est pas disponible dans ce navigateur." };
+    render();
+    return;
+  }
+  state.saveStatus = { type: "info", message: "Connexion Supabase en cours..." };
+  render();
+  try {
+    const user = await ensureSupabaseUser();
+    await upsertSupabaseProfile(user);
+    state.saveStatus = { type: "success", message: "Connecte a Supabase. Vous pouvez creer une competition sauvegardee." };
+  } catch (error) {
+    state.saveStatus = { type: "warning", message: `Connexion impossible : ${error.message || "verifiez email et mot de passe"}` };
+  }
   render();
 }
 
-function logoutAccount() {
+async function logoutAccount() {
+  const client = getSupabaseClient();
+  if (client?.auth) await client.auth.signOut();
   state.account.signedIn = false;
+  state.account.authProvider = "local";
+  state.account.userId = "";
   state.account.sessionExpiresAt = "";
+  state.supabaseIds.userId = null;
   if (typeof localStorage !== "undefined") localStorage.removeItem("fglLocalSession");
   state.view = "dashboard";
   state.saveStatus = { type: "info", message: "Session fermee." };
@@ -1343,7 +1421,7 @@ function updateAccount(field, value) {
   state.account[field] = value;
 }
 
-function createAccount() {
+async function createAccount() {
   const required = ["firstName", "lastName", "email", "country", "password"];
   const missing = required.filter((field) => !String(state.account[field] || "").trim());
   if (missing.length) {
@@ -1351,8 +1429,50 @@ function createAccount() {
     render();
     return;
   }
-  startAccountSession();
-  state.saveStatus = { type: "success", message: "Compte cree localement. Prochaine etape : branchement Supabase Auth securise." };
+  const client = getSupabaseClient();
+  if (!client?.auth) {
+    startAccountSession();
+    state.saveStatus = { type: "warning", message: "Compte local cree. Supabase Auth n'est pas disponible dans ce navigateur." };
+    render();
+    return;
+  }
+  state.saveStatus = { type: "info", message: "Creation du compte Supabase en cours..." };
+  render();
+  try {
+    const email = String(state.account.email || "").trim();
+    const password = String(state.account.password || "").trim();
+    let { data, error } = await client.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          first_name: state.account.firstName,
+          last_name: state.account.lastName,
+          display_name: fullAccountName(),
+        },
+      },
+    });
+    if (error && /already|registered|exists/i.test(error.message || "")) {
+      const signedIn = await client.auth.signInWithPassword({ email, password });
+      data = signedIn.data;
+      error = signedIn.error;
+    }
+    if (error) throw error;
+    if (!data?.user) throw new Error("Compte cree, mais session en attente. Verifiez la confirmation email Supabase si elle est active.");
+    if (!data?.session) {
+      state.account.signedIn = false;
+      state.account.authProvider = "supabase";
+      state.saveStatus = { type: "info", message: "Compte cree. Confirmez l'email Supabase, puis revenez vous connecter." };
+      render();
+      return;
+    }
+    applySupabaseUser(data.user);
+    startAccountSession();
+    await upsertSupabaseProfile(data.user);
+    state.saveStatus = { type: "success", message: "Compte Supabase cree et profil FGL enregistre." };
+  } catch (error) {
+    state.saveStatus = { type: "warning", message: `Creation du compte impossible : ${error.message || "erreur Supabase"}` };
+  }
   render();
 }
 
@@ -1368,6 +1488,59 @@ function updateMarkerAssignment(groupIndex, playerIndex, marksIndex) {
   syncFlatMarkerAssignments();
 }
 
+function slugify(value) {
+  return String(value || "fgl")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80) || "fgl";
+}
+
+function selectedCourseDetails(roundIndex) {
+  const roundCourse = state.roundCourses[roundIndex] || {};
+  const matches = state.courseSearchResults[roundIndex] || [];
+  const selected = matches.find((course) => course.id === roundCourse.selectedCourseId);
+  const fallbackName = roundCourse.courseName || state.setup.courseName || `Golf tour ${roundIndex + 1}`;
+  return selected || {
+    id: roundCourse.selectedCourseId || `round-${roundIndex + 1}-${slugify(fallbackName)}`,
+    providerId: roundCourse.selectedCourseId || `round-${roundIndex + 1}-${slugify(fallbackName)}`,
+    name: fallbackName,
+    clubName: fallbackName,
+    location: "",
+    rawData: { source: "wizard" },
+  };
+}
+
+async function upsertCourseForRound(client, roundIndex) {
+  const course = selectedCourseDetails(roundIndex);
+  const providerCourseId = String(course.providerId || course.id || `round-${roundIndex + 1}`);
+  const provider = providerCourseId.startsWith("manual-") ? "manual" : "api";
+  const locationParts = String(course.location || "").split(",").map((part) => part.trim()).filter(Boolean);
+  const payload = {
+    provider,
+    provider_course_id: providerCourseId.replace(/^manual-/, ""),
+    club_name: course.clubName || course.name,
+    course_name: course.name || course.clubName || `Golf tour ${roundIndex + 1}`,
+    city: locationParts[0] || null,
+    country: locationParts[1] || null,
+    raw_data: course.rawData || {},
+  };
+  const { data, error } = await client
+    .from("courses")
+    .upsert(payload, { onConflict: "provider,provider_course_id" })
+    .select("id")
+    .single();
+  if (error) throw error;
+  return data.id;
+}
+
+function tokenHash() {
+  if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
 async function saveCompetitionToSupabase() {
   const client = getSupabaseClient();
   if (!client) {
@@ -1380,6 +1553,9 @@ async function saveCompetitionToSupabase() {
   render();
 
   try {
+    const user = await ensureSupabaseUser();
+    await upsertSupabaseProfile(user);
+
     const competitionPayload = {
       name: state.setup.competitionName || "Friends Golf Live",
       competition_type: state.setup.competitionType || "friends",
@@ -1388,6 +1564,9 @@ async function saveCompetitionToSupabase() {
       game_formula: state.setup.gameFormula || "stableford-net",
       scoring_mode: state.scoringMode || "marker",
       putts_enabled: Boolean(state.puttsEnabled),
+      live_leaderboard: Boolean(state.setup.liveLeaderboard),
+      card_signature: Boolean(state.setup.cardSignature),
+      created_by: user.id,
     };
     const { data: competition, error: competitionError } = await client
       .from("competitions")
@@ -1396,12 +1575,22 @@ async function saveCompetitionToSupabase() {
       .single();
     if (competitionError) throw competitionError;
 
+    const { error: memberError } = await client.from("competition_members").insert({
+      competition_id: competition.id,
+      user_id: user.id,
+      role: "organizer",
+      member_role: "owner",
+      can_admin: true,
+    });
+    if (memberError) throw memberError;
+
     const playerPayloads = state.setupPlayers.map((player, index) => ({
       competition_id: competition.id,
       display_name: player.name || `${t("players")} ${index + 1}`,
       playing_index: player.index === "" ? null : Number(player.index),
       email: player.email || null,
       account_status: player.accountStatus || "guest",
+      user_id: String(player.email || "").trim().toLowerCase() === String(state.account.email || "").trim().toLowerCase() ? user.id : null,
     }));
     const { data: players, error: playersError } = await client
       .from("players")
@@ -1420,11 +1609,38 @@ async function saveCompetitionToSupabase() {
       );
     await Promise.all(invitedPlayerUpdates);
 
+    const invitationPayloads = state.setupPlayers
+      .map((player, index) => ({ player, index }))
+      .filter(({ player }) => player.accountStatus === "guest" && player.email && Number.isFinite(Number(player.invitedBy)) && players[Number(player.invitedBy)])
+      .map(({ player, index }) => ({
+        competition_id: competition.id,
+        player_id: players[index].id,
+        invited_by_player_id: players[Number(player.invitedBy)].id,
+        email: player.email,
+        token_hash: tokenHash(),
+        status: "pending",
+      }));
+    let invitations = [];
+    if (invitationPayloads.length) {
+      const { data, error } = await client
+        .from("competition_invitations")
+        .insert(invitationPayloads)
+        .select("id");
+      if (error) throw error;
+      invitations = data || [];
+    }
+
+    const courseIds = [];
+    for (let index = 0; index < state.roundCourses.length; index += 1) {
+      courseIds.push(await upsertCourseForRound(client, index));
+    }
+
     const roundPayloads = state.roundCourses.map((course, index) => ({
       competition_id: competition.id,
       round_number: index + 1,
-      course_name: course.courseName || state.setup.courseName || null,
+      course_id: courseIds[index] || null,
       tees: course.tees || state.setup.tees || null,
+      played_on: index === 0 ? state.setup.startDate || null : null,
     }));
     const { data: rounds, error: roundsError } = await client
       .from("rounds")
@@ -1476,8 +1692,9 @@ async function saveCompetitionToSupabase() {
       playerIds: players.map((player) => player.id),
       roundIds: rounds.map((round) => round.id),
       groupIds: groups.map((group) => group.id),
+      invitationIds: invitations.map((invitation) => invitation.id),
     };
-    state.saveStatus = { type: "success", message: "Partie sauvegardee dans Supabase." };
+    state.saveStatus = { type: "success", message: "Competition sauvegardee dans Supabase avec compte, joueurs, parcours, parties et invitations." };
     return true;
   } catch (error) {
     state.saveStatus = { type: "warning", message: `Erreur Supabase : ${error.message || "sauvegarde impossible"}` };
@@ -1675,7 +1892,7 @@ function renderTopbar() {
     <header class="topbar">
       <div class="topbar-inner">
         <div class="brand">
-          <div class="brand-mark logo-mark"><img src="fgl-logo-cutout.png" alt="FGL" /></div>
+          <div class="brand-mark logo-mark"><img src="assets/fgl-logo-cutout.png" alt="FGL" /></div>
           <div>
             <h1>Friends Golf Live</h1>
             <span>${t("tagline")}</span>
@@ -1710,7 +1927,7 @@ function renderDashboard() {
         <div></div>
       </div>
       <div class="home-action-panel">
-        <img class="home-logo" src="fgl-logo-cutout.png" alt="Friends Golf Live - FGL" />
+        <img class="home-logo" src="assets/fgl-logo-cutout.png" alt="Friends Golf Live - FGL" />
         <p>${t("heroText")}</p>
         <div class="home-login-panel">
           <div>
@@ -2421,17 +2638,18 @@ function renderSecurity() {
 
 function renderProfile() {
   const account = state.account;
+  const connectedLabel = account.authProvider === "supabase" ? "Connecte Supabase" : account.signedIn ? "Session locale" : "Non connecte";
   return `
     <div class="section-title">
       <div>
         <h3>Profil</h3>
         <span>Compte joueur, licence, handicap et droits organisateur</span>
       </div>
-      <span class="pill ${account.signedIn ? "blue" : "warning"}">${account.signedIn ? "Connecte" : "Compte local"}</span>
+      <span class="pill ${account.signedIn ? "blue" : "warning"}">${connectedLabel}</span>
     </div>
     <section class="grid two">
       <div class="panel pad account-panel">
-        <div class="panel-head clean"><div><h3>Creer mon compte</h3><span>Ces champs serviront ensuite a Supabase Auth et au profil joueur.</span></div></div>
+        <div class="panel-head clean"><div><h3>Creer mon compte</h3><span>Compte securise Supabase Auth et profil joueur FGL.</span></div></div>
         <div class="form-grid">
           <div class="field"><label>Prenom</label><input value="${account.firstName}" oninput="updateAccount('firstName', this.value)" /></div>
           <div class="field"><label>Nom</label><input value="${account.lastName}" oninput="updateAccount('lastName', this.value)" /></div>
@@ -2447,7 +2665,11 @@ function renderProfile() {
           </select></div>
           <div class="field full"><label>Mot de passe</label><input type="password" value="${account.password}" placeholder="Minimum 8 caracteres" oninput="updateAccount('password', this.value)" /></div>
         </div>
-        <button class="button primary setup-start" onclick="createAccount()">${icon("shield")}Creer / mettre a jour le compte</button>
+        <div class="profile-actions">
+          <button class="button primary setup-start" onclick="createAccount()">${icon("shield")}Creer / mettre a jour le compte</button>
+          <button class="button" onclick="loginAccount()">Se connecter</button>
+          ${account.signedIn ? `<button class="button" onclick="logoutAccount()">Deconnexion</button>` : ""}
+        </div>
         ${state.saveStatus ? `<div class="wizard-status ${state.saveStatus.type}">${state.saveStatus.message}</div>` : ""}
       </div>
       <div class="panel pad role-panel">
@@ -2724,6 +2946,7 @@ function render() {
 
 if (typeof document !== "undefined") {
   loadLocalSession();
+  loadSupabaseSession().then(() => render()).catch(() => render());
   render();
 }
 

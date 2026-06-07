@@ -252,7 +252,7 @@ button {
   color: white;
   background:
     linear-gradient(180deg, rgba(13, 42, 31, 0.08) 0%, rgba(13, 42, 31, 0.18) 100%),
-    url("friends-golf-live-home.jpg");
+    url("assets/friends-golf-live-home.jpg");
   background-size: cover;
   background-repeat: no-repeat;
   background-position: center 44%;
@@ -689,6 +689,16 @@ button {
 .setup-start {
   width: 100%;
   margin-top: 12px;
+}
+
+.profile-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+}
+
+.profile-actions .setup-start {
+  margin-top: 0;
 }
 
 .wizard-backdrop {
