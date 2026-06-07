@@ -31,6 +31,8 @@ const state = {
   courseSearchResults: {},
   courseApiStatus: {},
   courseSearchTimers: {},
+  manualCourseOpen: {},
+  manualCourseForms: {},
   setup: {
     competitionType: "friends",
     competitionName: "Friends Invitational 2026",
@@ -804,6 +806,106 @@ function selectCourseForRound(index, courseId) {
   if (course.rawData) state.roundCourses[index].rawData = course.rawData;
 }
 
+function defaultManualCourseForm(index) {
+  const current = state.roundCourses[index] || {};
+  return {
+    courseName: current.courseName || "",
+    city: "",
+    country: "France",
+    tee: current.tees || "Jaunes",
+    rating: "",
+    slope: "",
+    pars: "4,5,3,4,4,4,5,3,4,4,5,3,4,4,5,4,3,4",
+    indexes: "7,3,15,1,11,5,9,17,13,8,2,18,4,14,6,12,16,10",
+  };
+}
+
+function toggleManualCourseForm(index) {
+  state.manualCourseOpen[index] = !state.manualCourseOpen[index];
+  if (!state.manualCourseForms[index]) state.manualCourseForms[index] = defaultManualCourseForm(index);
+  render();
+}
+
+function updateManualCourseForm(index, field, value) {
+  if (!state.manualCourseForms[index]) state.manualCourseForms[index] = defaultManualCourseForm(index);
+  state.manualCourseForms[index][field] = value;
+}
+
+function parseNumberList(value, fallback) {
+  const parsed = String(value || "")
+    .split(",")
+    .map((item) => Number(item.trim()))
+    .filter((item) => Number.isFinite(item));
+  return parsed.length === 18 ? parsed : fallback;
+}
+
+async function saveManualCourse(index) {
+  const form = state.manualCourseForms[index] || defaultManualCourseForm(index);
+  const pars = parseNumberList(form.pars, [4, 5, 3, 4, 4, 4, 5, 3, 4, 4, 5, 3, 4, 4, 5, 4, 3, 4]);
+  const strokeIndexes = parseNumberList(form.indexes, [7, 3, 15, 1, 11, 5, 9, 17, 13, 8, 2, 18, 4, 14, 6, 12, 16, 10]);
+  const manualId = `manual-${Date.now()}`;
+  const course = {
+    id: manualId,
+    providerId: manualId,
+    name: form.courseName || "Golf manuel",
+    clubName: form.courseName || "Golf manuel",
+    location: [form.city, form.country].filter(Boolean).join(", ") || "Ajoute manuellement",
+    par: pars.reduce((sum, par) => sum + par, 0),
+    rating: form.rating ? Number(form.rating) : null,
+    slope: form.slope ? Number(form.slope) : null,
+    distance: "Base interne",
+    tees: [{ name: form.tee, rating: form.rating, slope: form.slope }],
+    rawData: { manual: true, pars, strokeIndexes },
+  };
+
+  const client = getSupabaseClient();
+  if (client) {
+    try {
+      const { data, error } = await client
+        .from("courses")
+        .insert({
+          provider: "manual",
+          provider_course_id: manualId,
+          club_name: course.clubName,
+          course_name: course.name,
+          city: form.city || null,
+          country: form.country || null,
+          par: course.par,
+          rating: course.rating,
+          slope: course.slope,
+          tees: course.tees,
+          raw_data: course.rawData,
+        })
+        .select("id")
+        .single();
+      if (error) throw error;
+      const holes = pars.map((par, holeIndex) => ({
+        course_id: data.id,
+        hole_number: holeIndex + 1,
+        par,
+        stroke_index: strokeIndexes[holeIndex],
+      }));
+      const { error: holesError } = await client.from("course_holes").insert(holes);
+      if (holesError) throw holesError;
+      course.id = `manual-${data.id}`;
+      course.providerId = data.id;
+      state.courseApiStatus[index] = "Golf ajoute dans la base Supabase.";
+    } catch (error) {
+      state.courseApiStatus[index] = `Sauvegarde Supabase impossible : ${error.message || "erreur"}. Golf garde localement.`;
+    }
+  } else {
+    state.courseApiStatus[index] = "Supabase indisponible. Golf garde localement pour cette session.";
+  }
+
+  golfSuggestions.push(course);
+  state.courseSearchResults[index] = [course];
+  state.roundCourses[index].selectedCourseId = course.id;
+  state.roundCourses[index].courseName = course.name;
+  state.roundCourses[index].tees = form.tee;
+  state.manualCourseOpen[index] = false;
+  render();
+}
+
 function requestLocationCourses() {
   state.locationPermission = "granted";
   render();
@@ -849,6 +951,17 @@ async function loadGolfApiResults(index, value) {
   const functionName = getSupabaseConfig()?.golfSearchFunction || "search-golf-courses";
   const functionUrl = getSupabaseFunctionUrl(functionName);
   const config = getSupabaseConfig();
+  const localCourses = await loadManualCoursesFromSupabase(query);
+  if (localCourses.length) {
+    state.courseSearchResults[index] = localCourses;
+    state.courseApiStatus[index] = "Resultats de votre base Supabase.";
+    const card = document.querySelector(`[data-course-card="${index}"]`);
+    const target = card?.querySelector("[data-course-suggestions]");
+    const nextStatus = card?.querySelector("[data-course-api-status]");
+    if (target) target.innerHTML = renderCourseSuggestions(index);
+    if (nextStatus) nextStatus.textContent = state.courseApiStatus[index];
+    return;
+  }
   if (!functionUrl || !config?.publishableKey) {
     state.courseApiStatus[index] = "Fonction API golf non configuree. Resultats de demonstration.";
     if (status) status.textContent = state.courseApiStatus[index];
@@ -876,6 +989,30 @@ async function loadGolfApiResults(index, value) {
   const nextStatus = card?.querySelector("[data-course-api-status]");
   if (target) target.innerHTML = renderCourseSuggestions(index);
   if (nextStatus) nextStatus.textContent = state.courseApiStatus[index];
+}
+
+async function loadManualCoursesFromSupabase(query) {
+  const client = getSupabaseClient();
+  if (!client) return [];
+  const { data, error } = await client
+    .from("courses")
+    .select("id, club_name, course_name, city, country, par, rating, slope, tees, raw_data")
+    .or(`course_name.ilike.%${query}%,club_name.ilike.%${query}%,city.ilike.%${query}%,country.ilike.%${query}%`)
+    .limit(8);
+  if (error || !Array.isArray(data)) return [];
+  return data.map((course) => ({
+    id: `manual-${course.id}`,
+    providerId: course.id,
+    name: course.course_name,
+    clubName: course.club_name || course.course_name,
+    location: [course.city, course.country].filter(Boolean).join(", ") || "Base Supabase",
+    par: course.par,
+    rating: course.rating,
+    slope: course.slope,
+    distance: "Base interne",
+    tees: course.tees || [],
+    rawData: course.raw_data || {},
+  }));
 }
 
 function toggleGroupPlayer(groupIndex, playerIndex) {
@@ -1448,9 +1585,31 @@ function renderRoundCoursePickers() {
         <div class="course-suggestions" data-course-suggestions>
           ${renderCourseSuggestions(index)}
         </div>
+        <button class="button setup-start" onclick="toggleManualCourseForm(${index})">${icon("plus")}Golf introuvable ? Ajouter manuellement</button>
+        ${renderManualCourseForm(index)}
       </div>
     `;
   }).join("");
+}
+
+function renderManualCourseForm(index) {
+  if (!state.manualCourseOpen[index]) return "";
+  const form = state.manualCourseForms[index] || defaultManualCourseForm(index);
+  return `
+    <div class="manual-course-form">
+      <div class="form-grid">
+        <div class="field full"><label>Nom du golf / parcours</label><input value="${form.courseName}" oninput="updateManualCourseForm(${index}, 'courseName', this.value)" /></div>
+        <div class="field"><label>Ville</label><input value="${form.city}" oninput="updateManualCourseForm(${index}, 'city', this.value)" /></div>
+        <div class="field"><label>Pays</label><input value="${form.country}" oninput="updateManualCourseForm(${index}, 'country', this.value)" /></div>
+        <div class="field"><label>Tee</label><input value="${form.tee}" oninput="updateManualCourseForm(${index}, 'tee', this.value)" /></div>
+        <div class="field"><label>Rating</label><input type="number" step="0.1" value="${form.rating}" oninput="updateManualCourseForm(${index}, 'rating', this.value)" /></div>
+        <div class="field"><label>Slope</label><input type="number" step="1" value="${form.slope}" oninput="updateManualCourseForm(${index}, 'slope', this.value)" /></div>
+        <div class="field full"><label>Pars des 18 trous</label><input value="${form.pars}" oninput="updateManualCourseForm(${index}, 'pars', this.value)" /></div>
+        <div class="field full"><label>Index des 18 trous</label><input value="${form.indexes}" oninput="updateManualCourseForm(${index}, 'indexes', this.value)" /></div>
+      </div>
+      <button class="button primary setup-start" onclick="saveManualCourse(${index})">${icon("flag")}Enregistrer ce golf</button>
+    </div>
+  `;
 }
 
 function renderCreate() {
