@@ -146,6 +146,8 @@ const translations = {
     friendsCompetition: "Compétition entre amis",
     privateCompetition: "Compétition privée",
     golfTrip: "Séjour golfique",
+    matchplayCompetition: "Match play",
+    ryderCupCompetition: "Ryder Cup / équipes",
     playerCountTitle: "Combien de joueurs participent ?",
     playerCountHelp: "Saisissez le nombre de joueurs. L'écran suivant préparera autant de lignes.",
     players: "Joueurs",
@@ -231,6 +233,8 @@ const translations = {
     friendsCompetition: "Friends competition",
     privateCompetition: "Private competition",
     golfTrip: "Golf trip",
+    matchplayCompetition: "Match play",
+    ryderCupCompetition: "Ryder Cup / teams",
     playerCountTitle: "How many players?",
     playerCountHelp: "Enter the number of players. The next screen creates the lines.",
     players: "Players",
@@ -316,6 +320,8 @@ const translations = {
     friendsCompetition: "Competición entre amigos",
     privateCompetition: "Competición privada",
     golfTrip: "Viaje de golf",
+    matchplayCompetition: "Match play",
+    ryderCupCompetition: "Ryder Cup / equipos",
     playerCountTitle: "¿Cuántos jugadores?",
     playerCountHelp: "Introduce el número de jugadores.",
     players: "Jugadores",
@@ -374,6 +380,8 @@ const translations = {
     friendsCompetition: "Competizione tra amici",
     privateCompetition: "Competizione privata",
     golfTrip: "Viaggio golf",
+    matchplayCompetition: "Match play",
+    ryderCupCompetition: "Ryder Cup / squadre",
     playerCountTitle: "Quanti giocatori?",
     playerCountHelp: "Inserisci il numero di giocatori.",
     players: "Giocatori",
@@ -432,6 +440,8 @@ const translations = {
     friendsCompetition: "Freunde-Wettbewerb",
     privateCompetition: "Privater Wettbewerb",
     golfTrip: "Golfreise",
+    matchplayCompetition: "Match Play",
+    ryderCupCompetition: "Ryder Cup / Teams",
     playerCountTitle: "Wie viele Spieler?",
     playerCountHelp: "Gib die Anzahl der Spieler ein.",
     players: "Spieler",
@@ -1428,7 +1438,7 @@ function renderTopbar() {
     <header class="topbar">
       <div class="topbar-inner">
         <div class="brand">
-          <div class="brand-mark logo-mark"><img src="fgl-logo.png" alt="FGL" /></div>
+          <div class="brand-mark logo-mark"><img src="fgl-logo-cutout.png" alt="FGL" /></div>
           <div>
             <h1>Friends Golf Live</h1>
             <span>${t("tagline")}</span>
@@ -1461,7 +1471,7 @@ function renderDashboard() {
         <div></div>
       </div>
       <div class="home-action-panel">
-        <img class="home-logo" src="fgl-logo.png" alt="Friends Golf Live - FGL" />
+        <img class="home-logo" src="fgl-logo-cutout.png" alt="Friends Golf Live - FGL" />
         <p>${t("heroText")}</p>
         <button class="button primary hero-cta" onclick="openWizard()">${icon("plus")}${t("createNewGame")}</button>
       </div>
@@ -1518,6 +1528,13 @@ function closeLeaderboardPopup() {
   render();
 }
 
+function openPlayerScorecard(playerName) {
+  sampleScorecard.player = playerName || sampleScorecard.player;
+  state.view = "cards";
+  state.leaderboardOpen = false;
+  render();
+}
+
 function renderWizard() {
   if (!state.wizardOpen) return "";
   const steps = getWizardSteps();
@@ -1552,6 +1569,8 @@ function renderWizardStep(step) {
             <option value="friends" ${state.setup.competitionType === "friends" ? "selected" : ""}>${t("friendsCompetition")}</option>
             <option value="private" ${state.setup.competitionType === "private" ? "selected" : ""}>${t("privateCompetition")}</option>
             <option value="trip" ${state.setup.competitionType === "trip" ? "selected" : ""}>${t("golfTrip")}</option>
+            <option value="matchplay" ${state.setup.competitionType === "matchplay" ? "selected" : ""}>${t("matchplayCompetition")}</option>
+            <option value="rydercup" ${state.setup.competitionType === "rydercup" ? "selected" : ""}>${t("ryderCupCompetition")}</option>
           </select>
         </div>
         <div class="field full"><label>${t("competitionName")}</label><input value="${state.setup.competitionName}" oninput="updateSetup('competitionName', this.value)" /></div>
@@ -1939,20 +1958,21 @@ function renderMobileKeypad(activeLabel) {
 }
 
 function renderLeaderboard() {
+  const teamMode = ["matchplay", "rydercup"].includes(state.setup.competitionType);
   return `
     <div class="section-title">
       <div>
         <h3>Leaderboard</h3>
-        <span>Score brut, ecart au par, trou joue et points Stableford</span>
+        <span>${teamMode ? "Matchs, equipes et score projete" : "Score brut, ecart au par, trou joue et points Stableford"}</span>
       </div>
-      <div class="segmented">
+      ${teamMode ? `<span class="pill blue">${state.setup.competitionType === "rydercup" ? "Ryder Cup" : "Match play"}</span>` : `<div class="segmented">
         <button class="${state.format === "stableford" ? "active" : ""}" onclick="setFormat('stableford')">Pts</button>
         <button class="${state.format === "net" ? "active" : ""}" onclick="setFormat('net')">Net</button>
         <button class="${state.format === "brut" ? "active" : ""}" onclick="setFormat('brut')">Brut</button>
-      </div>
+      </div>`}
     </div>
-    ${renderLeaderboardPanel(false)}
-    ${renderLeaderboardPopup()}
+    ${teamMode ? renderMatchplay() : renderLeaderboardPanel(false)}
+    ${teamMode ? "" : renderLeaderboardPopup()}
   `;
 }
 
@@ -2040,9 +2060,9 @@ function renderMatchplay() {
       <div class="match-list">
         ${matchplayRows.map((row) => `
           <div class="match-row ${row.side}">
-            <div><strong>${row.red}</strong><span>HCP ${row.redHcp}</span></div>
+            <button class="match-player" onclick="openPlayerScorecard('${row.red}')"><strong>${row.red}</strong><span>HCP ${row.redHcp}</span></button>
             <div class="match-status"><strong>${row.status}</strong><span>${row.thru === "Final" ? "Final" : `Thru ${row.thru}`}</span></div>
-            <div><strong>${row.blue}</strong><span>HCP ${row.blueHcp}</span></div>
+            <button class="match-player right" onclick="openPlayerScorecard('${row.blue}')"><strong>${row.blue}</strong><span>HCP ${row.blueHcp}</span></button>
           </div>
         `).join("")}
       </div>
@@ -2229,7 +2249,7 @@ function renderLeaderboardPanel(compact = true) {
         ${leaderboard.map((row, index) => `
           <div class="leaderboard-line ${index === 0 ? "leader" : ""}">
             <span>${index + 1}</span>
-            <div><strong>${row.name}</strong><em>HCP ${row.hcp}</em></div>
+            <button class="leader-player-button" onclick="openPlayerScorecard('${row.name}')"><strong>${row.name}</strong><em>HCP ${row.hcp}</em></button>
             <strong>${row.score}</strong>
             <strong class="${String(row.toPar).startsWith("-") ? "under-par" : String(row.toPar).startsWith("+") ? "over-par" : ""}">${row.toPar}</strong>
             <span>${row.thru}</span>
@@ -2258,7 +2278,7 @@ function renderLeaderboardPopup() {
           ${leaderboard.map((row, index) => `
             <div class="augusta-row">
               <span>${index + 1}</span>
-              <strong>${row.name}</strong>
+              <button class="augusta-player-button" onclick="openPlayerScorecard('${row.name}')">${row.name}</button>
               <span>${row.score}</span>
               <span>${row.toPar}</span>
               <span>${row.pts}</span>
@@ -2297,7 +2317,6 @@ function renderTabs() {
     ["cards", "shield", t("cards")],
     ["leaderboard", "trophy", t("ranking")],
     ["stats", "score", "Stats"],
-    ["matchplay", "users", "Matchplay"],
     ["security", "shield", t("security")],
   ];
 
@@ -2321,7 +2340,6 @@ function renderCurrentView() {
   if (state.view === "cards") return renderCards();
   if (state.view === "leaderboard") return renderLeaderboard();
   if (state.view === "stats") return renderStats();
-  if (state.view === "matchplay") return renderMatchplay();
   if (state.view === "security") return renderSecurity();
   return renderDashboard();
 }
