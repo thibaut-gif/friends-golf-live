@@ -18,6 +18,7 @@ const state = {
   scoringMode: "marker",
   wizardOpen: false,
   wizardStep: 0,
+  leaderboardOpen: false,
   savingSetup: false,
   saveStatus: null,
   supabaseIds: {
@@ -31,12 +32,13 @@ const state = {
   courseSearchResults: {},
   courseApiStatus: {},
   courseSearchTimers: {},
+  scorecardScanStatus: {},
   manualCourseOpen: {},
   manualCourseForms: {},
   roundGroups: [],
   setup: {
     competitionType: "friends",
-    competitionName: "Friends Invitational 2026",
+    competitionName: "France Golf Live 2026",
     startDate: "2026-06-18",
     endDate: "2026-06-18",
     playerCount: 4,
@@ -89,13 +91,15 @@ const state = {
     { playerIndex: 2, marksIndex: 0 },
   ],
   hole: 7,
+  roundValidated: false,
   puttsEnabled: false,
   activeScore: { playerKey: "sophie", field: "gross" },
   scoreEvents: [],
   scores: {
     sophie: { name: "Sophie", gross: 5, putts: 2, points: 3, cardRole: "verification" },
     thomas: { name: "Thomas", gross: 4, putts: 1, points: 4, cardRole: "official" },
-    ines: { name: "Ines", gross: 6, putts: 2, points: 2, cardRole: "hidden" },
+    ines: { name: "Ines", gross: 6, putts: 2, points: 2, cardRole: "group" },
+    marc: { name: "Marc", gross: 5, putts: 2, points: 3, cardRole: "group" },
   },
 };
 
@@ -120,7 +124,7 @@ const translations = {
   FR: {
     tagline: "Jouez entre amis. Scores en direct.",
     homeBadge: "Nouvelle partie entre amis",
-    heroTitle: "Friends Golf Life",
+    heroTitle: "France Golf Live",
     heroText: "Créez une partie de golf entre amis, étape par étape, puis saisissez les scores en direct.",
     home: "Accueil",
     create: "Créer",
@@ -205,7 +209,7 @@ const translations = {
   EN: {
     tagline: "Play with friends. Score live.",
     homeBadge: "New round with friends",
-    heroTitle: "Friends Golf Live",
+    heroTitle: "France Golf Live",
     heroText: "Create a golf game with friends step by step, then enter scores live.",
     home: "Home",
     create: "Create",
@@ -290,7 +294,7 @@ const translations = {
   ES: {
     tagline: "Juega con amigos. Resultados en vivo.",
     homeBadge: "Nueva partida con amigos",
-    heroTitle: "Friends Golf Live",
+    heroTitle: "France Golf Live",
     heroText: "Crea una partida de golf con amigos paso a paso y registra los resultados en vivo.",
     home: "Inicio",
     create: "Crear",
@@ -348,7 +352,7 @@ const translations = {
   IT: {
     tagline: "Gioca con amici. Punteggi live.",
     homeBadge: "Nuova partita con amici",
-    heroTitle: "Friends Golf Live",
+    heroTitle: "France Golf Live",
     heroText: "Crea una partita di golf con amici passo dopo passo e inserisci i punteggi live.",
     home: "Home",
     create: "Crea",
@@ -406,7 +410,7 @@ const translations = {
   DE: {
     tagline: "Mit Freunden spielen. Live scoren.",
     homeBadge: "Neue Runde mit Freunden",
-    heroTitle: "Friends Golf Live",
+    heroTitle: "France Golf Live",
     heroText: "Erstelle Schritt für Schritt eine Golfrunde mit Freunden und erfasse Scores live.",
     home: "Start",
     create: "Erstellen",
@@ -960,11 +964,9 @@ function searchCourseInput(index, value) {
 }
 
 function courseMatches(index) {
-  const roundCourse = state.roundCourses[index] || {};
-  const query = String(roundCourse.courseName || "").toLowerCase();
   const apiResults = state.courseSearchResults[index] || [];
   if (apiResults.length) return apiResults;
-  return golfSuggestions.filter((course) => !query || `${course.name} ${course.location}`.toLowerCase().includes(query)).slice(0, 4);
+  return [];
 }
 
 function renderCourseSuggestions(index) {
@@ -999,7 +1001,7 @@ async function loadGolfApiResults(index, value) {
     return;
   }
   if (!functionUrl || !config?.publishableKey) {
-    state.courseApiStatus[index] = "Fonction API golf non configuree. Resultats de demonstration.";
+    state.courseApiStatus[index] = "Fonction API golf non configuree.";
     if (status) status.textContent = state.courseApiStatus[index];
     return;
   }
@@ -1018,13 +1020,21 @@ async function loadGolfApiResults(index, value) {
     state.courseApiStatus[index] = state.courseSearchResults[index].length ? "Resultats GolfCourseAPI" : "Aucun golf trouve dans l'API.";
   } catch (error) {
     state.courseSearchResults[index] = [];
-    state.courseApiStatus[index] = "API golf indisponible pour le moment. Resultats de demonstration.";
+    state.courseApiStatus[index] = "API golf indisponible ou aucun resultat. Essayez un nom plus precis ou scannez une carte de score.";
   }
   const card = document.querySelector(`[data-course-card="${index}"]`);
   const target = card?.querySelector("[data-course-suggestions]");
   const nextStatus = card?.querySelector("[data-course-api-status]");
   if (target) target.innerHTML = renderCourseSuggestions(index);
   if (nextStatus) nextStatus.textContent = state.courseApiStatus[index];
+}
+
+function handleScorecardPhoto(index, input) {
+  const file = input.files?.[0];
+  if (!file) return;
+  state.scorecardScanStatus[index] = `Photo recue : ${file.name}. Analyse automatique a connecter au service OCR/vision.`;
+  state.courseApiStatus[index] = "Carte de score importee. Prochaine etape : extraction automatique par OCR/vision.";
+  render();
 }
 
 async function loadManualCoursesFromSupabase(query) {
@@ -1126,7 +1136,7 @@ async function saveCompetitionToSupabase() {
 
   try {
     const competitionPayload = {
-      name: state.setup.competitionName || "Friends Golf Live",
+      name: state.setup.competitionName || "France Golf Live",
       competition_type: state.setup.competitionType || "friends",
       starts_on: state.setup.startDate || null,
       ends_on: state.setup.endDate || null,
@@ -1250,8 +1260,18 @@ function setPuttsEnabled(enabled) {
   render();
 }
 
+function visibleScoreEntries() {
+  const entries = Object.entries(state.scores);
+  if (state.scoringMode === "centralized") return entries;
+  if (state.scoringMode === "individual") return entries.filter(([, item]) => item.cardRole === "verification");
+  return entries
+    .filter(([, item]) => ["official", "verification"].includes(item.cardRole))
+    .sort(([, a], [, b]) => (a.cardRole === "official" ? -1 : 0) - (b.cardRole === "official" ? -1 : 0));
+}
+
 function scoreKeys() {
-  return Object.keys(state.scores);
+  const visibleKeys = visibleScoreEntries().map(([key]) => key);
+  return visibleKeys.length ? visibleKeys : Object.keys(state.scores);
 }
 
 function isActiveScore(playerKey, field) {
@@ -1334,6 +1354,49 @@ function clearActiveScore() {
   render();
 }
 
+function scoreEntryContext() {
+  normalizeGroups();
+  normalizeRoundCourses();
+  const roundIndex = 0;
+  const course = state.roundCourses[roundIndex] || { courseName: state.setup.courseName, tees: state.setup.tees };
+  const group = state.groups.find((item) => item.playerIndexes.length) || state.groups[0];
+  const assignment = group?.markerAssignments?.[0];
+  const marker = assignment ? playerName(assignment.playerIndex) : state.scores.sophie.name;
+  const marked = assignment ? playerName(assignment.marksIndex) : state.scores.thomas.name;
+  const groupPlayers = group?.playerIndexes?.length ? group.playerIndexes.map(playerName) : Object.values(state.scores).map((item) => item.name);
+  return {
+    roundNumber: roundIndex + 1,
+    roundCount: Math.max(1, Number(state.setup.roundCount) || 1),
+    courseName: course.courseName || state.setup.courseName || "Golf a selectionner",
+    teeName: course.tees || state.setup.tees || "Depart",
+    groupName: group?.name || "Partie 1",
+    marker,
+    marked,
+    groupPlayers,
+  };
+}
+
+function validateHoleAndAdvance() {
+  const active = state.activeScore || { playerKey: scoreKeys()[0], field: "gross" };
+  recordScoreEvent("hole_validate", active.playerKey, active.field, state.hole, state.hole);
+  state.roundValidated = false;
+  if (state.hole >= 18) {
+    validateRound();
+    return;
+  }
+  state.hole += 1;
+  state.activeScore = { playerKey: scoreKeys()[0], field: "gross" };
+  render();
+}
+
+function validateRound() {
+  const active = state.activeScore || { playerKey: scoreKeys()[0], field: "gross" };
+  recordScoreEvent("round_validate", active.playerKey, active.field, state.hole, "Tour valide");
+  state.roundValidated = true;
+  state.saveStatus = { type: "success", message: "Tour valide. Le leaderboard et l'historique sont mis a jour." };
+  render();
+}
+
 function renderTopbar() {
   const activeLanguage = languages.find((language) => language.code === state.language) || languages[0];
   return `
@@ -1342,7 +1405,7 @@ function renderTopbar() {
         <div class="brand">
           <div class="brand-mark">${icons.flag}</div>
           <div>
-            <h1>Friends Golf Life</h1>
+            <h1>France Golf Live</h1>
             <span>${t("tagline")}</span>
           </div>
         </div>
@@ -1404,6 +1467,31 @@ const gameFormulas = [
   ["foursome", "Foursome"],
   ["custom-points", "Classement par points maison"],
 ];
+
+const formulaDescriptions = {
+  "stableford-net": "Stableford net : les points sont calcules apres application des coups rendus trou par trou.",
+  "stableford-gross": "Stableford brut : les points sont calcules uniquement avec le score joue, sans coups rendus.",
+  "stroke-net": "Stroke play net : total des coups joues moins les coups rendus.",
+  "stroke-gross": "Stroke play brut : total des coups joues, sans correction d'index.",
+  "match-play": "Match play : chaque trou se gagne, se perd ou se partage. Le score se compte en trous.",
+  chouette: "Chouette : partie a 3 joueurs, 6 points par trou selon les scores compares.",
+  skins: "Skins game : chaque trou vaut un enjeu. En cas d'egalite, l'enjeu peut etre reporte.",
+  scramble: "Scramble : chaque joueur joue, l'equipe choisit la meilleure balle, puis tous rejouent de cet endroit.",
+  "best-ball": "Best ball : chaque joueur joue sa balle, le meilleur score de l'equipe compte.",
+  greensome: "Greensome : les deux joueurs prennent le depart, choisissent une balle, puis jouent alternativement.",
+  foursome: "Foursome : une seule balle par equipe, les joueurs jouent alternativement les coups.",
+  "custom-points": "Classement maison : permet de definir un barème de points specifique a votre competition.",
+};
+
+function openLeaderboardPopup() {
+  state.leaderboardOpen = true;
+  render();
+}
+
+function closeLeaderboardPopup() {
+  state.leaderboardOpen = false;
+  render();
+}
 
 function renderWizard() {
   if (!state.wizardOpen) return "";
@@ -1487,10 +1575,9 @@ function renderWizardStep(step) {
   if (step === "course") return `
     <div class="wizard-body">
       <h2>${t("coursesTitle")}</h2>
-      <p>${t("coursesHelp")}</p>
+      <p>Tapez le nom du golf. L'API doit recuperer le parcours, les tees, le slope/rating et la carte de score.</p>
       <button class="button primary setup-start" onclick="requestLocationCourses()">${icon("flag")}${t("useLocation")}</button>
       <div class="empty-note">${t("locationHelp")} ${state.locationPermission === "granted" ? "Autorisation accordee - propositions proches affichees." : ""}</div>
-      <div class="empty-note">La recherche interroge GolfCourseAPI via Supabase quand la fonction est deployee. Sinon, l'app garde une liste de secours.</div>
       <div class="round-course-list">
         ${renderRoundCoursePickers()}
       </div>
@@ -1500,7 +1587,8 @@ function renderWizardStep(step) {
     <div class="wizard-body">
       <h2>${t("formulaTitle")}</h2>
       <p>${t("formulaHelp")}</p>
-      <div class="field full"><label>${t("formula")}</label><select onchange="updateSetup('gameFormula', this.value)">${gameFormulas.map(([value, label]) => `<option value="${value}" ${state.setup.gameFormula === value ? "selected" : ""}>${label}</option>`).join("")}</select></div>
+      <div class="field full"><label>${t("formula")}</label><select onchange="updateSetup('gameFormula', this.value); render();">${gameFormulas.map(([value, label]) => `<option value="${value}" ${state.setup.gameFormula === value ? "selected" : ""}>${label}</option>`).join("")}</select></div>
+      <div class="formula-explanation">${formulaDescriptions[state.setup.gameFormula] || formulaDescriptions["stableford-net"]}</div>
       ${state.setup.gameFormula === "chouette" ? `<div class="empty-note">${t("chouetteHelp")}</div>` : ""}
     </div>
   `;
@@ -1625,15 +1713,18 @@ function renderRoundCoursePickers() {
           <div><h3>${t("round")} ${index + 1}</h3><span>${roundCourse.courseName || t("searchGolf")}</span></div>
         </div>
         <div class="form-grid">
-          <div class="field"><label>${t("searchGolf")}</label><input value="${roundCourse.courseName}" oninput="searchCourseInput(${index}, this.value)" /></div>
+          <div class="field full"><label>${t("searchGolf")}</label><input placeholder="Ex. Chantilly, Saint-Cloud, Golf National..." value="${roundCourse.courseName}" oninput="searchCourseInput(${index}, this.value)" /></div>
           <div class="field"><label>${t("tees")}</label><select onchange="updateRoundCourse(${index}, 'tees', this.value)"><option>Jaunes</option><option>Blancs</option><option>Bleus</option><option>Rouges</option></select></div>
         </div>
-        <div class="empty-note" data-course-api-status>${state.courseApiStatus[index] || "Recherche GolfCourseAPI en attente."}</div>
+        <div class="empty-note" data-course-api-status>${state.courseApiStatus[index] || "Tapez au moins 2 lettres pour lancer la recherche API."}</div>
         <div class="course-suggestions" data-course-suggestions>
           ${renderCourseSuggestions(index)}
         </div>
-        <button class="button setup-start" onclick="toggleManualCourseForm(${index})">${icon("plus")}Golf introuvable ? Ajouter manuellement</button>
-        ${renderManualCourseForm(index)}
+        <label class="button setup-start camera-upload">
+          ${icon("score")}Scanner une carte de score
+          <input type="file" accept="image/*" capture="environment" onchange="handleScorecardPhoto(${index}, this)" />
+        </label>
+        ${state.scorecardScanStatus[index] ? `<div class="empty-note">${state.scorecardScanStatus[index]}</div>` : ""}
       </div>
     `;
   }).join("");
@@ -1705,51 +1796,134 @@ function renderCreate() {
 }
 
 function renderScore() {
-  normalizeGroups();
-  const entries = Object.entries(state.scores).filter(([, item]) => state.scoringMode !== "marker" || item.cardRole !== "hidden");
+  const context = scoreEntryContext();
+  const entries = visibleScoreEntries();
+  const official = entries.find(([, item]) => item.cardRole === "official")?.[1];
+  const verification = entries.find(([, item]) => item.cardRole === "verification")?.[1];
+  const currentPar = sampleScorecard.holes[state.hole - 1]?.par || 4;
+  const currentIndex = sampleScorecard.holes[state.hole - 1]?.strokeIndex || state.hole;
+  const active = state.activeScore;
+  const activeItem = active ? state.scores[active.playerKey] : null;
+  const activeLabel = activeItem ? `${activeItem.name} - ${active.field === "gross" ? "score" : "putts"}` : "Selectionner une cellule";
+  const scoreModeLabel = state.scoringMode === "centralized"
+    ? "Saisie centralisee"
+    : state.scoringMode === "individual"
+      ? "Saisie individuelle"
+      : "Mode marqueur";
   const rows = entries
     .map(([key, item]) => `
       <div class="score-line ${state.puttsEnabled ? "" : "putts-off"}">
         <div>
           <div class="name">${item.name}</div>
-          <span class="pill ${item.cardRole === "official" ? "warning" : "blue"}">${item.cardRole === "official" ? t("officialCard") : item.cardRole === "verification" ? t("checkCard") : `${item.points} pts calcules`}</span>
+          <span class="pill ${item.cardRole === "official" ? "warning" : item.cardRole === "verification" ? "blue" : ""}">${scoreRoleLabel(item.cardRole, item.points)}</span>
         </div>
         ${renderScoreCell(key, "gross", "Score", item.gross)}
         ${state.puttsEnabled ? renderScoreCell(key, "putts", "Putts", item.putts) : ""}
       </div>
     `)
     .join("");
-  const active = state.activeScore;
-  const activeItem = active ? state.scores[active.playerKey] : null;
-  const activeLabel = activeItem ? `${activeItem.name} - ${active.field === "gross" ? "score" : "putts"}` : "Selectionner une cellule";
-  const exampleGroup = state.groups.find((group) => group.playerIndexes.length) || state.groups[0];
-  const exampleAssignment = exampleGroup?.markerAssignments?.[0];
-  const examplePlayer = exampleAssignment ? playerName(exampleAssignment.playerIndex) : "Sophie";
-  const exampleMarked = exampleAssignment ? playerName(exampleAssignment.marksIndex) : "Thomas";
+  const grossPoints = official ? stablefordPoints(official.gross, currentPar) : 0;
+  const netPoints = official ? stablefordPoints(Number(official.gross) - strokesReceivedForHole(sampleScorecard.handicap, currentIndex), currentPar) : 0;
 
   return `
     <div class="section-title">
       <div>
-        <h3>Saisie mobile</h3>
-        <span>Partie 1, trou courant avec sauvegarde automatique</span>
+        <h3>Saisie des scores</h3>
+        <span>${state.setup.competitionName} · ${context.courseName} · ${context.groupName}</span>
       </div>
-      <span class="pill">Enregistre</span>
+      <span class="pill ${state.roundValidated ? "blue" : ""}">${state.roundValidated ? "Tour valide" : "En direct"}</span>
+    </div>
+    <div class="score-entry-header">
+      <div class="score-context-grid">
+        <div><span>Tour</span><strong>${context.roundNumber}/${context.roundCount}</strong></div>
+        <div><span>Golf</span><strong>${context.courseName}</strong></div>
+        <div><span>Partie</span><strong>${context.groupName}</strong></div>
+        <div><span>Trou</span><strong>${state.hole}/18</strong></div>
+      </div>
+      <div class="score-context-strip">
+        <button class="button small" onclick="state.hole = Math.max(1, state.hole - 1); state.roundValidated = false; render();">Trou precedent</button>
+        <span class="pill blue">Par ${currentPar} · SI ${currentIndex}</span>
+        <button class="button small" onclick="validateHoleAndAdvance()">Trou suivant</button>
+      </div>
     </div>
     <section class="grid two">
       <div class="panel pad scorecard">
+        <div class="score-entry-title">
+          <div>
+            <h3>${scoreModeLabel}</h3>
+            <span>${state.scoringMode === "marker" ? `${context.marker} marque ${context.marked}, puis renseigne son propre score.` : state.scoringMode === "centralized" ? "Une personne saisit tous les joueurs de la partie." : "Chaque joueur saisit uniquement sa propre carte."}</span>
+          </div>
+        </div>
+        <div class="metric-row score-metrics">
+          <div class="metric"><strong>${grossPoints}</strong><span>points bruts</span></div>
+          <div class="metric"><strong>${netPoints}</strong><span>points nets</span></div>
+          <div class="metric"><strong>${sampleScorecard.handicap}</strong><span>coups rendus</span></div>
+        </div>
+        <div class="marker-summary">
+          <div><span>Joueur marque</span><strong>${state.scoringMode === "centralized" ? "Toute la partie" : state.scoringMode === "individual" ? verification?.name || context.marker : official?.name || context.marked}</strong></div>
+          <div><span>Marqueur</span><strong>${state.scoringMode === "centralized" ? context.marker : context.marker}</strong></div>
+          <div><span>Carte de verification</span><strong>${verification?.name || context.marker}</strong></div>
+        </div>
+        ${renderRoundScorecard(entries, context)}
         <div class="hole-card">
           <div class="hole-top">
-            <div><span class="pill blue">Par 4 - SI 3</span><strong>Trou ${state.hole}</strong></div>
+            <div><span class="pill blue">Par ${currentPar} - SI ${currentIndex}</span><strong>Trou ${state.hole}</strong></div>
             <button class="button icon-only" title="Notifications">${icon("bell")}</button>
           </div>
           <div class="score-inputs">${rows}</div>
         </div>
         ${renderMobileKeypad(activeLabel)}
-        <button class="button primary" onclick="state.hole = Math.min(18, state.hole + 1); render();">${icon("flag")}Valider le trou</button>
-        <div class="empty-note">${state.scoringMode === "marker" ? `Profil exemple : ${examplePlayer} voit seulement ${exampleMarked} à marquer officiellement et sa propre carte de vérification.` : "La saisie suit le mode choisi pendant la création."}</div>
+        <button class="button primary" onclick="validateHoleAndAdvance()">${icon("flag")}${state.hole >= 18 ? "Valider le tour" : "Valider le trou"}</button>
+        <div class="empty-note">${state.hole >= 18 ? "La validation du dernier trou verrouille le tour de test et met le leaderboard a jour." : "Quand vous passez au trou suivant, le trou en cours est automatiquement valide et ajoute a l'historique."}</div>
       </div>
       ${renderLeaderboardPanel()}
     </section>
+    ${renderLeaderboardPopup()}
+  `;
+}
+
+function scoreRoleLabel(role, points) {
+  if (role === "official") return t("officialCard");
+  if (role === "verification") return t("checkCard");
+  return `${points} pts calcules`;
+}
+
+function renderRoundScorecard(entries, context) {
+  const holes = Array.from({ length: 18 }, (_, index) => index + 1);
+  const visiblePlayers = entries.map(([, item]) => item.name);
+  const groupPlayers = context.groupPlayers.filter((name) => !visiblePlayers.includes(name)).slice(0, Math.max(0, 4 - visiblePlayers.length));
+  const names = [...visiblePlayers, ...groupPlayers].slice(0, 4);
+  return `
+    <div class="round-scorecard-wrap">
+      <div class="round-scorecard-head">
+        <strong>Carte de score de la partie</strong>
+        <span>${context.teeName} · ${names.join(", ")}</span>
+      </div>
+      <div class="round-scorecard-scroll">
+        <table class="round-scorecard">
+          <thead>
+            <tr><th>Joueur</th>${holes.map((hole) => `<th class="${hole === state.hole ? "current" : ""}">${hole}</th>`).join("")}<th>Pts</th></tr>
+          </thead>
+          <tbody>
+            ${names.map((name, playerIndex) => {
+              const match = entries.find(([, item]) => item.name === name)?.[1];
+              const points = match?.points ?? (playerIndex === 0 ? 4 : playerIndex === 1 ? 3 : 2);
+              return `
+                <tr>
+                  <td>${name}</td>
+                  ${holes.map((hole) => {
+                    const currentValue = match?.gross || "";
+                    const sampleValue = hole < state.hole ? Math.max(3, 5 + ((hole + playerIndex) % 3) - 1) : "";
+                    return `<td class="${hole === state.hole ? "current" : ""}">${hole === state.hole ? currentValue || "-" : sampleValue || ""}</td>`;
+                  }).join("")}
+                  <td>${points}</td>
+                </tr>
+              `;
+            }).join("")}
+          </tbody>
+        </table>
+      </div>
+    </div>
   `;
 }
 
@@ -1804,6 +1978,7 @@ function renderLeaderboard() {
         </div>
       </div>
     </section>
+    ${renderLeaderboardPopup()}
   `;
 }
 
@@ -1979,7 +2154,7 @@ function renderLeaderboardPanel(compact = true) {
     <div class="panel">
       <div class="panel-head">
         <div><h3>Leaderboard</h3><span>${compact ? "Top actuel" : "Classement complet"}</span></div>
-        <button class="button small" onclick="setView('leaderboard')">${icon("trophy")}Voir</button>
+        <button class="button small" onclick="openLeaderboardPopup()">${icon("trophy")}Voir</button>
       </div>
       <div class="panel pad leaderboard">
         ${leaderboard.map((row, index) => `
@@ -1990,6 +2165,35 @@ function renderLeaderboardPanel(compact = true) {
           </div>
         `).join("")}
       </div>
+    </div>
+  `;
+}
+
+function renderLeaderboardPopup() {
+  if (!state.leaderboardOpen) return "";
+  return `
+    <div class="leaderboard-modal-backdrop" role="dialog" aria-modal="true">
+      <section class="leaderboard-modal">
+        <header>
+          <div>
+            <span>France Golf Live</span>
+            <h3>Leaderboard</h3>
+          </div>
+          <button class="button small" onclick="closeLeaderboardPopup()">Fermer</button>
+        </header>
+        <div class="augusta-board">
+          <div class="augusta-row header"><span>#</span><span>Joueur</span><span>Thru</span><span>Net</span><span>Pts</span></div>
+          ${leaderboard.map((row, index) => `
+            <div class="augusta-row">
+              <span>${index + 1}</span>
+              <strong>${row.name}</strong>
+              <span>${row.thru}</span>
+              <span>${row.net}</span>
+              <span>${row.pts}</span>
+            </div>
+          `).join("")}
+        </div>
+      </section>
     </div>
   `;
 }
