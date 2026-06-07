@@ -97,6 +97,7 @@ const state = {
     password: "",
     role: "Organisateur",
     signedIn: false,
+    sessionExpiresAt: "",
   },
   markerAssignments: [
     { playerIndex: 0, marksIndex: 1 },
@@ -650,6 +651,13 @@ function scorecardTotals(rows) {
 }
 
 function setView(view) {
+  const protectedViews = ["create", "score", "cards", "leaderboard", "stats", "security"];
+  if (protectedViews.includes(view) && !isSessionActive()) {
+    state.view = "dashboard";
+    state.saveStatus = { type: "warning", message: "Connectez-vous pour acceder a votre partie. La session locale reste ouverte pendant la competition." };
+    render();
+    return;
+  }
   state.view = view;
   render();
 }
@@ -661,6 +669,68 @@ function setFormat(format) {
 
 function setStatsRange(range) {
   state.statsRange = range;
+  render();
+}
+
+function isSessionActive() {
+  if (!state.account.signedIn || !state.account.sessionExpiresAt) return false;
+  return new Date(state.account.sessionExpiresAt).getTime() > Date.now();
+}
+
+function sessionExpirationFromCompetition() {
+  const minimum = new Date(Date.now() + 24 * 60 * 60 * 1000);
+  const endDate = state.setup.endDate ? new Date(`${state.setup.endDate}T23:59:59`) : null;
+  if (endDate && Number.isFinite(endDate.getTime()) && endDate > minimum) return endDate;
+  return minimum;
+}
+
+function persistLocalSession() {
+  if (typeof localStorage === "undefined") return;
+  localStorage.setItem("fglLocalSession", JSON.stringify({
+    account: state.account,
+    savedAt: new Date().toISOString(),
+  }));
+}
+
+function loadLocalSession() {
+  if (typeof localStorage === "undefined") return;
+  try {
+    const saved = JSON.parse(localStorage.getItem("fglLocalSession") || "null");
+    if (!saved?.account?.sessionExpiresAt) return;
+    if (new Date(saved.account.sessionExpiresAt).getTime() <= Date.now()) {
+      localStorage.removeItem("fglLocalSession");
+      return;
+    }
+    state.account = { ...state.account, ...saved.account, password: "" };
+  } catch {
+    localStorage.removeItem("fglLocalSession");
+  }
+}
+
+function startAccountSession() {
+  const expiresAt = sessionExpirationFromCompetition();
+  state.account.signedIn = true;
+  state.account.sessionExpiresAt = expiresAt.toISOString();
+  persistLocalSession();
+}
+
+function loginAccount() {
+  if (!String(state.account.email || "").trim() || !String(state.account.password || "").trim()) {
+    state.saveStatus = { type: "warning", message: "Renseignez email et mot de passe pour ouvrir la session." };
+    render();
+    return;
+  }
+  startAccountSession();
+  state.saveStatus = { type: "success", message: "Session locale ouverte jusqu'a la fin de la competition, avec 24h minimum." };
+  render();
+}
+
+function logoutAccount() {
+  state.account.signedIn = false;
+  state.account.sessionExpiresAt = "";
+  if (typeof localStorage !== "undefined") localStorage.removeItem("fglLocalSession");
+  state.view = "dashboard";
+  state.saveStatus = { type: "info", message: "Session fermee." };
   render();
 }
 
@@ -818,9 +888,11 @@ function syncGroupMarkerAssignments(group) {
   group.markerAssignments = players.map((playerIndex, position) => {
     const previous = existing.find((item) => item.playerIndex === playerIndex);
     const fallback = players.length > 1 ? players[(position + 1) % players.length] : playerIndex;
+    const previousMarks = Number(previous?.marksIndex);
+    const previousValid = players.includes(previousMarks) && (players.length === 1 || previousMarks !== playerIndex);
     return {
       playerIndex,
-      marksIndex: players.includes(Number(previous?.marksIndex)) ? Number(previous.marksIndex) : fallback,
+      marksIndex: previousValid ? previousMarks : fallback,
     };
   });
 }
@@ -1279,7 +1351,7 @@ function createAccount() {
     render();
     return;
   }
-  state.account.signedIn = true;
+  startAccountSession();
   state.saveStatus = { type: "success", message: "Compte cree localement. Prochaine etape : branchement Supabase Auth securise." };
   render();
 }
@@ -1288,7 +1360,11 @@ function updateMarkerAssignment(groupIndex, playerIndex, marksIndex) {
   normalizeMarkerAssignments();
   const group = state.groups[groupIndex];
   const assignment = group?.markerAssignments?.find((item) => item.playerIndex === playerIndex);
-  if (assignment) assignment.marksIndex = Number(marksIndex);
+  if (assignment) {
+    const requested = Number(marksIndex);
+    const fallback = group.playerIndexes.find((candidate) => candidate !== playerIndex) ?? playerIndex;
+    assignment.marksIndex = group.playerIndexes.length > 1 && requested === playerIndex ? fallback : requested;
+  }
   syncFlatMarkerAssignments();
 }
 
@@ -1324,12 +1400,25 @@ async function saveCompetitionToSupabase() {
       competition_id: competition.id,
       display_name: player.name || `${t("players")} ${index + 1}`,
       playing_index: player.index === "" ? null : Number(player.index),
+      email: player.email || null,
+      account_status: player.accountStatus || "guest",
     }));
     const { data: players, error: playersError } = await client
       .from("players")
       .insert(playerPayloads)
       .select("id");
     if (playersError) throw playersError;
+
+    const invitedPlayerUpdates = state.setupPlayers
+      .map((player, index) => ({ player, index }))
+      .filter(({ player }) => player.accountStatus === "guest" && Number.isFinite(Number(player.invitedBy)) && players[Number(player.invitedBy)])
+      .map(({ player, index }) =>
+        client
+          .from("players")
+          .update({ invited_by_player_id: players[Number(player.invitedBy)].id })
+          .eq("id", players[index].id)
+      );
+    await Promise.all(invitedPlayerUpdates);
 
     const roundPayloads = state.roundCourses.map((course, index) => ({
       competition_id: competition.id,
@@ -1613,6 +1702,8 @@ function renderTopbar() {
 }
 
 function renderDashboard() {
+  const sessionActive = isSessionActive();
+  const expires = sessionActive ? new Date(state.account.sessionExpiresAt).toLocaleString("fr-FR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "";
   return `
     <section class="hero home-single">
       <div class="hero-main">
@@ -1621,7 +1712,28 @@ function renderDashboard() {
       <div class="home-action-panel">
         <img class="home-logo" src="fgl-logo-cutout.png" alt="Friends Golf Live - FGL" />
         <p>${t("heroText")}</p>
-        <button class="button primary hero-cta" onclick="openWizard()">${icon("plus")}${t("createNewGame")}</button>
+        <div class="home-login-panel">
+          <div>
+            <strong>${sessionActive ? `Connecte jusqu'a ${expires}` : "Connexion organisateur / joueur"}</strong>
+            <span>${sessionActive ? `${state.account.firstName} ${state.account.lastName} · ${state.account.role}` : "Email et mot de passe. La session locale reste ouverte jusqu'a la fin de la competition, avec 24h minimum."}</span>
+          </div>
+          ${sessionActive ? `
+            <div class="home-login-actions">
+              <button class="button primary hero-cta" onclick="openWizard()">${icon("plus")}${t("createNewGame")}</button>
+              <button class="button" onclick="logoutAccount()">Deconnexion</button>
+            </div>
+          ` : `
+            <div class="form-grid home-login-fields">
+              <div class="field"><label>Email</label><input type="email" value="${state.account.email}" oninput="updateAccount('email', this.value)" /></div>
+              <div class="field"><label>Mot de passe</label><input type="password" value="${state.account.password}" oninput="updateAccount('password', this.value)" /></div>
+            </div>
+            <div class="home-login-actions">
+              <button class="button primary hero-cta" onclick="loginAccount()">${icon("shield")}Se connecter</button>
+              <button class="button" onclick="setView('profile')">Creer un compte</button>
+            </div>
+          `}
+          ${state.saveStatus ? `<div class="wizard-status ${state.saveStatus.type}">${state.saveStatus.message}</div>` : ""}
+        </div>
       </div>
     </section>
   `;
@@ -1901,7 +2013,7 @@ function renderWizardStep(step) {
                   <strong>${playerName(assignment.playerIndex)}</strong>
                   <span>${t("marks")}</span>
                   <select onchange="updateMarkerAssignment(${groupIndex}, ${assignment.playerIndex}, this.value)">
-                    ${group.playerIndexes.map((candidateIndex) => `<option value="${candidateIndex}" ${assignment.marksIndex === candidateIndex ? "selected" : ""}>${playerName(candidateIndex)}</option>`).join("")}
+                    ${group.playerIndexes.filter((candidateIndex) => group.playerIndexes.length === 1 || candidateIndex !== assignment.playerIndex).map((candidateIndex) => `<option value="${candidateIndex}" ${assignment.marksIndex === candidateIndex ? "selected" : ""}>${playerName(candidateIndex)}</option>`).join("")}
                   </select>
                 </div>
               `).join("")}
@@ -2075,9 +2187,7 @@ function scoreRoleLabel(role, points) {
 }
 
 function renderRoundScorecard(entries, context) {
-  const visiblePlayers = entries.map(([, item]) => item.name);
-  const groupPlayers = context.groupPlayers.filter((name) => !visiblePlayers.includes(name)).slice(0, Math.max(0, 4 - visiblePlayers.length));
-  const names = [...visiblePlayers, ...groupPlayers].slice(0, 4);
+  const names = (context.groupPlayers.length ? context.groupPlayers : entries.map(([, item]) => item.name)).filter(Boolean);
   return `
     <div class="round-scorecard-wrap">
       <div class="round-scorecard-head">
@@ -2613,6 +2723,7 @@ function render() {
 }
 
 if (typeof document !== "undefined") {
+  loadLocalSession();
   render();
 }
 

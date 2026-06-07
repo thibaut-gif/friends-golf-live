@@ -290,6 +290,38 @@ button {
   line-height: 1.45;
 }
 
+.home-login-panel {
+  width: min(720px, 100%);
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.92);
+  text-align: left;
+}
+
+.home-login-panel strong,
+.home-login-panel span {
+  display: block;
+}
+
+.home-login-panel span {
+  margin-top: 3px;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.home-login-fields {
+  width: 100%;
+}
+
+.home-login-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 .hero-actions {
   display: flex;
   flex-wrap: wrap;
