@@ -827,6 +827,30 @@ button {
   background: var(--mint);
 }
 
+.selected-course-note {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #b8d4c6;
+  border-radius: 8px;
+  background: var(--mint);
+  color: var(--green-dark);
+}
+
+.selected-course-note strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.selected-course-note span {
+  margin-left: auto;
+  color: var(--muted);
+  font-weight: 800;
+}
+
 .course-option strong,
 .course-option span {
   display: block;
@@ -1353,6 +1377,14 @@ button {
   font-weight: 800;
 }
 
+.match-rounds {
+  margin: 12px auto;
+  display: flex;
+  width: fit-content;
+  max-width: calc(100% - 24px);
+  overflow-x: auto;
+}
+
 .team-score {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 130px 130px minmax(0, 1fr);
@@ -1376,6 +1408,33 @@ button {
   font-size: 34px;
   font-weight: 950;
   transform: translateY(10px);
+}
+
+.single-match-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 110px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding: 18px;
+  background: white;
+  color: var(--ink);
+  text-align: center;
+}
+
+.single-match-head span {
+  overflow: hidden;
+  color: var(--green-dark);
+  font-size: 18px;
+  font-weight: 950;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.single-match-head strong {
+  padding: 10px;
+  border-radius: 8px;
+  background: #2f6f5e;
+  color: white;
 }
 
 .red { color: #e70016; }
@@ -1457,6 +1516,42 @@ button {
   color: white;
   font-size: 12px;
   text-transform: uppercase;
+}
+
+.account-panel,
+.role-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.panel-head.clean {
+  padding: 0;
+  border-bottom: 0;
+}
+
+.profile-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfa;
+}
+
+.profile-card strong {
+  display: block;
+  font-size: 18px;
+}
+
+.profile-card span {
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.account-rights {
+  grid-template-columns: 1fr;
 }
 
 .augusta-board {

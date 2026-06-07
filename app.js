@@ -19,6 +19,7 @@ const state = {
   wizardOpen: false,
   wizardStep: 0,
   leaderboardOpen: false,
+  leaderboardRound: 1,
   statsRange: "competition",
   savingSetup: false,
   saveStatus: null,
@@ -86,6 +87,17 @@ const state = {
     { id: "t1", name: "Equipe 1", playerIndexes: [0, 1] },
     { id: "t2", name: "Equipe 2", playerIndexes: [2, 3] },
   ],
+  account: {
+    firstName: "Thibault",
+    lastName: "Chaumais",
+    email: "thibaut@chaumais.com",
+    country: "France",
+    handicap: "16.4",
+    licenseNumber: "",
+    password: "",
+    role: "Organisateur",
+    signedIn: false,
+  },
   markerAssignments: [
     { playerIndex: 0, marksIndex: 1 },
     { playerIndex: 1, marksIndex: 2 },
@@ -652,12 +664,22 @@ function setStatsRange(range) {
   render();
 }
 
+function setLeaderboardRound(round) {
+  state.leaderboardRound = Math.max(1, Math.min(Number(state.setup.roundCount) || 1, Number(round) || 1));
+  render();
+}
+
 function isRyderCupMode() {
-  return state.setup.competitionType === "rydercup" || state.setup.gameFormula === "ryder-cup";
+  return state.setup.gameFormula === "ryder-cup";
 }
 
 function isMatchplayLeaderboardMode() {
-  return ["matchplay", "rydercup"].includes(state.setup.competitionType) || ["match-play", "ryder-cup"].includes(state.setup.gameFormula);
+  return ["match-play", "ryder-cup"].includes(state.setup.gameFormula);
+}
+
+function allRoundCoursesSelected() {
+  normalizeRoundCourses();
+  return state.roundCourses.every((course) => Boolean(course.selectedCourseId && course.courseName));
 }
 
 function setLanguage(language) {
@@ -691,20 +713,13 @@ function setWizardStep(step) {
 function updateSetup(field, value) {
   state.setup[field] = value;
   if (field === "competitionType") {
-    if (value === "matchplay") {
-      state.setup.gameFormula = "match-play";
-      state.setup.playerCount = 2;
-      state.setup.groupSize = 2;
-    }
-    if (value === "rydercup") state.setup.gameFormula = "ryder-cup";
+    state.setup.competitionType = value;
   }
   if (field === "gameFormula") {
     if (value === "match-play") {
-      state.setup.competitionType = "matchplay";
       state.setup.playerCount = 2;
       state.setup.groupSize = 2;
     }
-    if (value === "ryder-cup") state.setup.competitionType = "rydercup";
   }
   if (field === "playerCount") {
     normalizeSetupPlayers();
@@ -879,17 +894,20 @@ function normalizeTeams() {
   if (isRyderCupMode()) {
     const indexes = state.setupPlayers.map((_, index) => index);
     const split = Math.ceil(indexes.length / 2);
+    const previous = Array.isArray(state.teams) ? state.teams : [];
     state.teams = [
-      { id: "red", name: "Team Reds", playerIndexes: indexes.slice(0, split) },
-      { id: "blue", name: "Team Blues", playerIndexes: indexes.slice(split) },
+      { id: "red", name: previous[0]?.name || "Team Reds", playerIndexes: previous[0]?.playerIndexes?.length ? previous[0].playerIndexes.filter((item) => indexes.includes(item)) : indexes.slice(0, split) },
+      { id: "blue", name: previous[1]?.name || "Team Blues", playerIndexes: previous[1]?.playerIndexes?.length ? previous[1].playerIndexes.filter((item) => indexes.includes(item)) : indexes.slice(split) },
     ];
     return;
   }
   const size = Number(state.setup.scrambleSize) || 2;
   const indexes = state.setupPlayers.map((_, index) => index);
+  const previous = Array.isArray(state.teams) ? state.teams : [];
   state.teams = [];
   for (let index = 0; index < indexes.length; index += size) {
-    state.teams.push({ id: `t${state.teams.length + 1}`, name: `${t("team")} ${state.teams.length + 1}`, playerIndexes: indexes.slice(index, index + size) });
+    const previousTeam = previous[state.teams.length];
+    state.teams.push({ id: `t${state.teams.length + 1}`, name: previousTeam?.name || `${t("team")} ${state.teams.length + 1}`, playerIndexes: previousTeam?.playerIndexes?.length ? previousTeam.playerIndexes.filter((item) => indexes.includes(item)).slice(0, size) : indexes.slice(index, index + size) });
   }
 }
 
@@ -905,7 +923,10 @@ function updatePlayerSetup(index, field, value) {
 function updateRoundCourse(index, field, value) {
   normalizeRoundCourses();
   state.roundCourses[index][field] = value;
-  if (field === "courseName") state.courseSearchDrafts[index] = value;
+  if (field === "courseName") {
+    state.courseSearchDrafts[index] = value;
+    state.roundCourses[index].selectedCourseId = "";
+  }
 }
 
 function selectCourseForRound(index, courseId) {
@@ -1182,9 +1203,33 @@ function setScrambleSize(size) {
   render();
 }
 
+function updateTeamName(teamIndex, value) {
+  normalizeTeams();
+  if (state.teams[teamIndex]) state.teams[teamIndex].name = value;
+  render();
+}
+
 function updateTeamPlayer(teamIndex, slotIndex, playerIndex) {
   normalizeTeams();
   state.teams[teamIndex].playerIndexes[slotIndex] = Number(playerIndex);
+  render();
+}
+
+function updateAccount(field, value) {
+  state.account[field] = value;
+}
+
+function createAccount() {
+  const required = ["firstName", "lastName", "email", "country", "password"];
+  const missing = required.filter((field) => !String(state.account[field] || "").trim());
+  if (missing.length) {
+    state.saveStatus = { type: "warning", message: "Completez prenom, nom, email, pays et mot de passe pour creer le compte." };
+    render();
+    return;
+  }
+  state.account.signedIn = true;
+  state.saveStatus = { type: "success", message: "Compte cree localement. Prochaine etape : branchement Supabase Auth securise." };
+  render();
 }
 
 function updateMarkerAssignment(groupIndex, playerIndex, marksIndex) {
@@ -1306,9 +1351,15 @@ async function nextWizardStep() {
   normalizeSetupPlayers();
   normalizeRoundCourses();
   normalizeGroups();
-  if (String(state.setup.gameFormula).includes("scramble")) normalizeTeams();
+  if (String(state.setup.gameFormula).includes("scramble") || isRyderCupMode()) normalizeTeams();
   if (state.scoringMode === "marker") normalizeMarkerAssignments();
   const steps = getWizardSteps();
+  const currentStep = steps[state.wizardStep];
+  if (currentStep === "course" && !allRoundCoursesSelected()) {
+    state.saveStatus = { type: "warning", message: "Selectionnez un parcours dans les resultats pour chaque tour avant de continuer." };
+    render();
+    return;
+  }
   if (state.wizardStep === steps.length - 1) {
     await saveCompetitionToSupabase();
     state.wizardOpen = false;
@@ -1547,7 +1598,7 @@ const formulaDescriptions = {
   "stroke-net": "Stroke play net : total des coups joues moins les coups rendus.",
   "stroke-gross": "Stroke play brut : total des coups joues, sans correction d'index.",
   "match-play": "Match play : chaque trou se gagne, se perd ou se partage. Le score se compte en trous.",
-  "ryder-cup": "Ryder Cup : deux equipes s'affrontent en plusieurs matchs. Le classement affiche les matchs et le score par equipe.",
+  "ryder-cup": "Ryder Cup : deux equipes s'affrontent en plusieurs matchs, souvent sur 3 tours. Le classement affiche les matchs, le tour selectionne et le score cumule par equipe.",
   chouette: "Chouette : partie a 3 joueurs, 6 points par trou selon les scores compares.",
   skins: "Skins game : chaque trou vaut un enjeu. En cas d'egalite, l'enjeu peut etre reporte.",
   scramble: "Scramble : chaque joueur joue, l'equipe choisit la meilleure balle, puis tous rejouent de cet endroit.",
@@ -1608,8 +1659,6 @@ function renderWizardStep(step) {
             <option value="friends" ${state.setup.competitionType === "friends" ? "selected" : ""}>${t("friendsCompetition")}</option>
             <option value="private" ${state.setup.competitionType === "private" ? "selected" : ""}>${t("privateCompetition")}</option>
             <option value="trip" ${state.setup.competitionType === "trip" ? "selected" : ""}>${t("golfTrip")}</option>
-            <option value="matchplay" ${state.setup.competitionType === "matchplay" ? "selected" : ""}>${t("matchplayCompetition")}</option>
-            <option value="rydercup" ${state.setup.competitionType === "rydercup" ? "selected" : ""}>${t("ryderCupCompetition")}</option>
           </select>
         </div>
         <div class="field full"><label>${t("competitionName")}</label><input value="${state.setup.competitionName}" oninput="updateSetup('competitionName', this.value)" /></div>
@@ -1724,11 +1773,15 @@ function renderWizardStep(step) {
         <div class="team-list">
           ${state.teams.map((team, teamIndex) => `
             <div class="builder-card">
-              <strong>${team.name}</strong>
+              <div class="field">
+                <label>Nom de l'equipe</label>
+                <input value="${team.name}" oninput="updateTeamName(${teamIndex}, this.value)" />
+              </div>
               ${Array.from({ length: teamSlots }).map((_, slotIndex) => `
                 <div class="field">
                   <label>${t("players")} ${slotIndex + 1}</label>
                   <select onchange="updateTeamPlayer(${teamIndex}, ${slotIndex}, this.value)">
+                    <option value="">Selectionner</option>
                     ${state.setupPlayers.map((player, playerIndex) => `<option value="${playerIndex}" ${team.playerIndexes[slotIndex] === playerIndex ? "selected" : ""}>${player.name || `${t("players")} ${playerIndex + 1}`}</option>`).join("")}
                   </select>
                 </div>
@@ -1794,7 +1847,8 @@ function renderRoundCoursePickers() {
     return `
       <div class="round-course-card" data-course-card="${index}">
         <div class="section-title">
-          <div><h3>${t("round")} ${index + 1}</h3><span>${roundCourse.courseName || t("searchGolf")}</span></div>
+          <div><h3>${t("round")} ${index + 1}</h3><span>${roundCourse.selectedCourseId ? `Parcours selectionne : ${roundCourse.courseName}` : "Selection obligatoire du parcours"}</span></div>
+          <span class="pill ${roundCourse.selectedCourseId ? "blue" : "warning"}">${roundCourse.selectedCourseId ? "OK" : "A choisir"}</span>
         </div>
         <div class="form-grid">
           <div class="field full"><label>${t("searchGolf")}</label><input placeholder="Ex. Chantilly, Saint-Cloud, Golf National..." value="${roundCourse.courseName}" oninput="searchCourseInput(${index}, this.value)" /></div>
@@ -1804,6 +1858,7 @@ function renderRoundCoursePickers() {
         <div class="course-suggestions" data-course-suggestions>
           ${renderCourseSuggestions(index)}
         </div>
+        ${roundCourse.selectedCourseId ? `<div class="selected-course-note">${icon("flag")}<strong>${roundCourse.courseName}</strong><span>${roundCourse.tees || state.setup.tees}</span></div>` : `<div class="empty-note">Vous devez choisir un parcours dans les resultats afin de recuperer les tees, slope/rating et la carte de score.</div>`}
         <label class="button setup-start camera-upload">
           ${icon("score")}Scanner une carte de score
           <input type="file" accept="image/*" capture="environment" onchange="handleScorecardPhoto(${index}, this)" />
@@ -1999,7 +2054,7 @@ function renderMobileKeypad(activeLabel) {
 
 function renderLeaderboard() {
   const teamMode = isMatchplayLeaderboardMode();
-  const teamModeLabel = state.setup.gameFormula === "ryder-cup" || state.setup.competitionType === "rydercup" ? "Ryder Cup" : "Match play";
+  const teamModeLabel = state.setup.gameFormula === "ryder-cup" ? "Ryder Cup" : "Match play";
   return `
     <div class="section-title">
       <div>
@@ -2074,6 +2129,16 @@ function renderStats() {
 }
 
 function renderMatchplay(showTitle = true) {
+  const ryderMode = isRyderCupMode();
+  const round = Math.max(1, Math.min(Number(state.setup.roundCount) || 1, Number(state.leaderboardRound) || 1));
+  const course = state.roundCourses[round - 1]?.courseName || state.setup.courseName || "Parcours a selectionner";
+  const redTeam = state.teams[0]?.name || "Equipe 1";
+  const blueTeam = state.teams[1]?.name || "Equipe 2";
+  const roundSelector = Number(state.setup.roundCount) > 1 ? `
+    <div class="segmented match-rounds">
+      ${Array.from({ length: Number(state.setup.roundCount) || 1 }, (_, index) => `<button class="${round === index + 1 ? "active" : ""}" onclick="setLeaderboardRound(${index + 1})">Tour ${index + 1}</button>`).join("")}
+    </div>
+  ` : "";
   return `
     ${showTitle ? `<div class="section-title">
       <div>
@@ -2084,22 +2149,31 @@ function renderMatchplay(showTitle = true) {
     </div>` : ""}
     <section class="matchplay-board">
       <div class="matchplay-header">
-        <strong>West vs East R2</strong>
-        <span>Hill Course</span>
+        <strong>${state.setup.competitionName}</strong>
+        <span>${course} · Tour ${round}</span>
       </div>
-      <div class="team-score">
-        <span class="red">Team Reds</span>
-        <strong class="red-box">2½</strong>
-        <strong class="blue-box">3½</strong>
-        <span class="blue">Team Blues</span>
-      </div>
-      <div class="projected-score">
-        <strong class="red">4</strong>
-        <span>Projete</span>
-        <strong class="blue">6</strong>
-      </div>
+      ${roundSelector}
+      ${ryderMode ? `
+        <div class="team-score">
+          <span class="red">${redTeam}</span>
+          <strong class="red-box">${round === 1 ? "2½" : round === 2 ? "5" : "7½"}</strong>
+          <strong class="blue-box">${round === 1 ? "3½" : round === 2 ? "5" : "8½"}</strong>
+          <span class="blue">${blueTeam}</span>
+        </div>
+        <div class="projected-score">
+          <strong class="red">${round === 1 ? "4" : "8"}</strong>
+          <span>Projete cumule</span>
+          <strong class="blue">${round === 1 ? "6" : "10"}</strong>
+        </div>
+      ` : `
+        <div class="single-match-head">
+          <span>${matchplayRows[0].red}</span>
+          <strong>${matchplayRows[0].status}</strong>
+          <span>${matchplayRows[0].blue}</span>
+        </div>
+      `}
       <div class="match-list">
-        ${matchplayRows.map((row) => `
+        ${(ryderMode ? matchplayRows : matchplayRows.slice(0, 1)).map((row) => `
           <div class="match-row ${row.side}">
             <button class="match-player" onclick="openPlayerScorecard('${row.red}')"><strong>${row.red}</strong><span>HCP ${row.redHcp}</span></button>
             <div class="match-status"><strong>${row.status}</strong><span>${row.thru === "Final" ? "Final" : `Thru ${row.thru}`}</span></div>
@@ -2146,6 +2220,56 @@ function renderSecurity() {
           <label class="switch"><span>Export CSV scores complets</span><button class="button small">${icon("download")}CSV</button></label>
           <label class="switch"><span>Archive JSON competition</span><button class="button small">${icon("download")}JSON</button></label>
           <label class="switch"><span>Recapitulatif PDF final</span><button class="button small">${icon("download")}PDF</button></label>
+        </div>
+      </div>
+    </section>
+  `;
+}
+
+function renderProfile() {
+  const account = state.account;
+  return `
+    <div class="section-title">
+      <div>
+        <h3>Profil</h3>
+        <span>Compte joueur, licence, handicap et droits organisateur</span>
+      </div>
+      <span class="pill ${account.signedIn ? "blue" : "warning"}">${account.signedIn ? "Connecte" : "Compte local"}</span>
+    </div>
+    <section class="grid two">
+      <div class="panel pad account-panel">
+        <div class="panel-head clean"><div><h3>Creer mon compte</h3><span>Ces champs serviront ensuite a Supabase Auth et au profil joueur.</span></div></div>
+        <div class="form-grid">
+          <div class="field"><label>Prenom</label><input value="${account.firstName}" oninput="updateAccount('firstName', this.value)" /></div>
+          <div class="field"><label>Nom</label><input value="${account.lastName}" oninput="updateAccount('lastName', this.value)" /></div>
+          <div class="field full"><label>Email</label><input type="email" value="${account.email}" oninput="updateAccount('email', this.value)" /></div>
+          <div class="field"><label>Pays</label><select onchange="updateAccount('country', this.value)">
+            ${["France", "Belgique", "Suisse", "Espagne", "Italie", "Allemagne", "Royaume-Uni", "Autre"].map((country) => `<option ${account.country === country ? "selected" : ""}>${country}</option>`).join("")}
+          </select></div>
+          <div class="field"><label>Handicap / Index</label><input type="number" step="0.1" value="${account.handicap}" oninput="updateAccount('handicap', this.value)" /></div>
+          <div class="field"><label>Numero de licence</label><input value="${account.licenseNumber}" placeholder="Selon le pays" oninput="updateAccount('licenseNumber', this.value)" /></div>
+          <div class="field"><label>Role</label><select onchange="updateAccount('role', this.value)">
+            <option ${account.role === "Joueur" ? "selected" : ""}>Joueur</option>
+            <option ${account.role === "Organisateur" ? "selected" : ""}>Organisateur</option>
+          </select></div>
+          <div class="field full"><label>Mot de passe</label><input type="password" value="${account.password}" placeholder="Minimum 8 caracteres" oninput="updateAccount('password', this.value)" /></div>
+        </div>
+        <button class="button primary setup-start" onclick="createAccount()">${icon("shield")}Creer / mettre a jour le compte</button>
+        ${state.saveStatus ? `<div class="wizard-status ${state.saveStatus.type}">${state.saveStatus.message}</div>` : ""}
+      </div>
+      <div class="panel pad role-panel">
+        <div class="profile-card">
+          <span class="avatar">${initials(`${account.firstName} ${account.lastName}`)}</span>
+          <div>
+            <strong>${account.firstName} ${account.lastName}</strong>
+            <span>${account.email}</span>
+          </div>
+        </div>
+        <div class="security-band account-rights">
+          <div class="security-item">${icon("score")}<strong>Joueur</strong><span>Acces a son profil, ses cartes, ses historiques et ses signatures.</span></div>
+          <div class="security-item">${icon("trophy")}<strong>Organisateur</strong><span>Creation de competitions, gestion des joueurs, groupes, parcours et classements.</span></div>
+          <div class="security-item">${icon("shield")}<strong>Securite</strong><span>Mot de passe gere par Supabase Auth, donnees separees par utilisateur et competition.</span></div>
+          <div class="security-item">${icon("flag")}<strong>International</strong><span>Pays et numero de licence adaptables selon federation.</span></div>
         </div>
       </div>
     </section>
@@ -2358,6 +2482,7 @@ function renderTabs() {
     ["cards", "shield", t("cards")],
     ["leaderboard", "trophy", t("ranking")],
     ["stats", "score", "Stats"],
+    ["profile", "users", "Profil"],
     ["security", "shield", t("security")],
   ];
 
@@ -2381,6 +2506,7 @@ function renderCurrentView() {
   if (state.view === "cards") return renderCards();
   if (state.view === "leaderboard") return renderLeaderboard();
   if (state.view === "stats") return renderStats();
+  if (state.view === "profile") return renderProfile();
   if (state.view === "security") return renderSecurity();
   return renderDashboard();
 }
