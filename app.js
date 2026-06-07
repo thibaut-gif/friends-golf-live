@@ -38,7 +38,7 @@ const state = {
   roundGroups: [],
   setup: {
     competitionType: "friends",
-    competitionName: "France Golf Live 2026",
+    competitionName: "Friends Golf Live 2026",
     startDate: "2026-06-18",
     endDate: "2026-06-18",
     playerCount: 4,
@@ -124,7 +124,7 @@ const translations = {
   FR: {
     tagline: "Jouez entre amis. Scores en direct.",
     homeBadge: "Nouvelle partie entre amis",
-    heroTitle: "France Golf Live",
+    heroTitle: "Friends Golf Live",
     heroText: "Créez une partie de golf entre amis, étape par étape, puis saisissez les scores en direct.",
     home: "Accueil",
     create: "Créer",
@@ -209,7 +209,7 @@ const translations = {
   EN: {
     tagline: "Play with friends. Score live.",
     homeBadge: "New round with friends",
-    heroTitle: "France Golf Live",
+    heroTitle: "Friends Golf Live",
     heroText: "Create a golf game with friends step by step, then enter scores live.",
     home: "Home",
     create: "Create",
@@ -294,7 +294,7 @@ const translations = {
   ES: {
     tagline: "Juega con amigos. Resultados en vivo.",
     homeBadge: "Nueva partida con amigos",
-    heroTitle: "France Golf Live",
+    heroTitle: "Friends Golf Live",
     heroText: "Crea una partida de golf con amigos paso a paso y registra los resultados en vivo.",
     home: "Inicio",
     create: "Crear",
@@ -352,7 +352,7 @@ const translations = {
   IT: {
     tagline: "Gioca con amici. Punteggi live.",
     homeBadge: "Nuova partita con amici",
-    heroTitle: "France Golf Live",
+    heroTitle: "Friends Golf Live",
     heroText: "Crea una partita di golf con amici passo dopo passo e inserisci i punteggi live.",
     home: "Home",
     create: "Crea",
@@ -410,7 +410,7 @@ const translations = {
   DE: {
     tagline: "Mit Freunden spielen. Live scoren.",
     homeBadge: "Neue Runde mit Freunden",
-    heroTitle: "France Golf Live",
+    heroTitle: "Friends Golf Live",
     heroText: "Erstelle Schritt für Schritt eine Golfrunde mit Freunden und erfasse Scores live.",
     home: "Start",
     create: "Erstellen",
@@ -1136,7 +1136,7 @@ async function saveCompetitionToSupabase() {
 
   try {
     const competitionPayload = {
-      name: state.setup.competitionName || "France Golf Live",
+      name: state.setup.competitionName || "Friends Golf Live",
       competition_type: state.setup.competitionType || "friends",
       starts_on: state.setup.startDate || null,
       ends_on: state.setup.endDate || null,
@@ -1403,9 +1403,9 @@ function renderTopbar() {
     <header class="topbar">
       <div class="topbar-inner">
         <div class="brand">
-          <div class="brand-mark">${icons.flag}</div>
+          <div class="brand-mark logo-mark"><img src="fgl-logo.png" alt="FGL" /></div>
           <div>
-            <h1>France Golf Live</h1>
+            <h1>Friends Golf Live</h1>
             <span>${t("tagline")}</span>
           </div>
         </div>
@@ -1433,9 +1433,12 @@ function renderDashboard() {
   return `
     <section class="hero home-single">
       <div class="hero-main">
-        <div></div>
+        <div class="hero-logo-panel">
+          <img src="fgl-logo.png" alt="Friends Golf Live - FGL" />
+        </div>
       </div>
       <div class="home-action-panel">
+        <span class="pill blue">FGL</span>
         <h2>${t("heroTitle")}</h2>
         <p>${t("heroText")}</p>
         <button class="button primary hero-cta" onclick="openWizard()">${icon("plus")}${t("createNewGame")}</button>
@@ -2135,7 +2138,7 @@ function renderLeaderboardPopup() {
       <section class="leaderboard-modal">
         <header>
           <div>
-            <span>France Golf Live</span>
+            <span>Friends Golf Live</span>
             <h3>Leaderboard</h3>
           </div>
           <button class="button small" onclick="closeLeaderboardPopup()">Fermer</button>
