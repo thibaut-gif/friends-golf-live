@@ -611,6 +611,11 @@ function getSupabaseFunctionUrl(functionName) {
   return `${config.url.replace(/\/$/, "")}/functions/v1/${functionName}`;
 }
 
+function getAppRedirectUrl() {
+  if (typeof window === "undefined") return undefined;
+  return window.location.href.split("#")[0].split("?")[0];
+}
+
 function strokesReceivedForHole(playingHandicap, strokeIndex) {
   const handicap = Math.max(0, Number(playingHandicap) || 0);
   const base = Math.floor(handicap / 18);
@@ -1445,6 +1450,7 @@ async function createAccount() {
       email,
       password,
       options: {
+        emailRedirectTo: getAppRedirectUrl(),
         data: {
           first_name: state.account.firstName,
           last_name: state.account.lastName,
@@ -1924,7 +1930,7 @@ function renderDashboard() {
   return `
     <section class="hero home-single">
       <div class="hero-main">
-        <div></div>
+        <img class="hero-photo" src="assets/friends-golf-live-home.jpg" alt="Golfeurs sur le parcours" />
       </div>
       <div class="home-action-panel">
         <img class="home-logo" src="assets/fgl-logo-cutout.png" alt="Friends Golf Live - FGL" />
