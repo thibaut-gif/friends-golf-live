@@ -1143,6 +1143,10 @@ button {
   gap: 12px;
 }
 
+.score-page {
+  display: block;
+}
+
 .score-context-strip {
   margin-bottom: 14px;
   display: flex;
@@ -1281,6 +1285,117 @@ button {
   background: var(--mint);
   color: var(--green-dark);
   font-weight: 950;
+}
+
+.party-scorecards {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  padding: 12px;
+}
+
+.party-scorecard {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: 13px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.party-scorecard strong {
+  overflow: hidden;
+  color: var(--green);
+  font-size: 18px;
+  font-weight: 950;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.party-scorecard span {
+  color: var(--muted);
+  font-weight: 850;
+}
+
+.hole-entry-card {
+  display: grid;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfa;
+}
+
+.hole-nav {
+  display: grid;
+  grid-template-columns: minmax(140px, 1fr) auto minmax(140px, 1fr);
+  align-items: center;
+  gap: 14px;
+}
+
+.score-nav-button {
+  min-height: 54px;
+  justify-content: center;
+  color: var(--green);
+  font-size: 18px;
+  font-weight: 950;
+}
+
+.hole-title {
+  min-width: 110px;
+  text-align: center;
+}
+
+.hole-title strong {
+  display: block;
+  font-size: 22px;
+  font-weight: 950;
+}
+
+.hole-title span {
+  display: block;
+  color: var(--muted);
+  font-weight: 750;
+}
+
+.score-entry-list {
+  gap: 9px;
+}
+
+.score-entry-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 92px 72px;
+  align-items: stretch;
+  gap: 10px;
+}
+
+.score-entry-row.putts-off {
+  grid-template-columns: minmax(0, 1fr) 92px;
+}
+
+.score-entry-row > div:first-child {
+  display: grid;
+  align-content: center;
+  min-width: 0;
+  min-height: 58px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+}
+
+.score-entry-row .name {
+  overflow: hidden;
+  font-size: 18px;
+  font-weight: 950;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.score-entry-row > div:first-child span {
+  color: var(--muted);
+  font-weight: 750;
 }
 
 .hole-card {
@@ -1551,6 +1666,30 @@ button {
   .marker-summary,
   .score-metrics {
     grid-template-columns: 1fr;
+  }
+
+  .party-scorecards {
+    grid-template-columns: 1fr;
+  }
+
+  .hole-nav {
+    grid-template-columns: 1fr;
+  }
+
+  .score-nav-button {
+    min-height: 48px;
+  }
+
+  .score-entry-row {
+    grid-template-columns: minmax(0, 1fr) 76px 64px;
+  }
+
+  .score-entry-row.putts-off {
+    grid-template-columns: minmax(0, 1fr) 78px;
+  }
+
+  .score-entry-row .name {
+    font-size: 16px;
   }
 
   .round-scorecard-head {

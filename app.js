@@ -92,7 +92,7 @@ const state = {
   ],
   hole: 7,
   roundValidated: false,
-  puttsEnabled: false,
+  puttsEnabled: true,
   activeScore: { playerKey: "sophie", field: "gross" },
   scoreEvents: [],
   scores: {
@@ -1798,85 +1798,49 @@ function renderCreate() {
 function renderScore() {
   const context = scoreEntryContext();
   const entries = visibleScoreEntries();
-  const official = entries.find(([, item]) => item.cardRole === "official")?.[1];
-  const verification = entries.find(([, item]) => item.cardRole === "verification")?.[1];
-  const currentPar = sampleScorecard.holes[state.hole - 1]?.par || 4;
-  const currentIndex = sampleScorecard.holes[state.hole - 1]?.strokeIndex || state.hole;
+  const currentHole = sampleScorecard.holes[state.hole - 1] || { par: 4, strokeIndex: state.hole };
+  const currentPar = currentHole.par || 4;
+  const currentIndex = currentHole.strokeIndex || state.hole;
   const active = state.activeScore;
   const activeItem = active ? state.scores[active.playerKey] : null;
   const activeLabel = activeItem ? `${activeItem.name} - ${active.field === "gross" ? "score" : "putts"}` : "Selectionner une cellule";
-  const scoreModeLabel = state.scoringMode === "centralized"
-    ? "Saisie centralisee"
-    : state.scoringMode === "individual"
-      ? "Saisie individuelle"
-      : "Mode marqueur";
   const rows = entries
     .map(([key, item]) => `
-      <div class="score-line ${state.puttsEnabled ? "" : "putts-off"}">
+      <div class="score-entry-row ${state.puttsEnabled ? "" : "putts-off"}">
         <div>
           <div class="name">${item.name}</div>
-          <span class="pill ${item.cardRole === "official" ? "warning" : item.cardRole === "verification" ? "blue" : ""}">${scoreRoleLabel(item.cardRole, item.points)}</span>
+          <span>${stablefordPoints(item.gross, currentPar)} pts · +${strokesReceivedForHole(sampleScorecard.handicap, currentIndex)} rendu</span>
         </div>
         ${renderScoreCell(key, "gross", "Score", item.gross)}
-        ${state.puttsEnabled ? renderScoreCell(key, "putts", "Putts", item.putts) : ""}
+        ${state.puttsEnabled ? renderScoreCell(key, "putts", "P", item.putts) : ""}
       </div>
     `)
     .join("");
-  const grossPoints = official ? stablefordPoints(official.gross, currentPar) : 0;
-  const netPoints = official ? stablefordPoints(Number(official.gross) - strokesReceivedForHole(sampleScorecard.handicap, currentIndex), currentPar) : 0;
 
   return `
     <div class="section-title">
       <div>
         <h3>Saisie des scores</h3>
-        <span>${state.setup.competitionName} · ${context.courseName} · ${context.groupName}</span>
+        <span>Tour ${context.roundNumber} · ${context.courseName}</span>
       </div>
       <span class="pill ${state.roundValidated ? "blue" : ""}">${state.roundValidated ? "Tour valide" : "En direct"}</span>
     </div>
-    <div class="score-entry-header">
-      <div class="score-context-grid">
-        <div><span>Tour</span><strong>${context.roundNumber}/${context.roundCount}</strong></div>
-        <div><span>Golf</span><strong>${context.courseName}</strong></div>
-        <div><span>Partie</span><strong>${context.groupName}</strong></div>
-        <div><span>Trou</span><strong>${state.hole}/18</strong></div>
-      </div>
-      <div class="score-context-strip">
-        <button class="button small" onclick="state.hole = Math.max(1, state.hole - 1); state.roundValidated = false; render();">Trou precedent</button>
-        <span class="pill blue">Par ${currentPar} · SI ${currentIndex}</span>
-        <button class="button small" onclick="validateHoleAndAdvance()">Trou suivant</button>
-      </div>
-    </div>
-    <section class="grid two">
+    <section class="score-page">
       <div class="panel pad scorecard">
-        <div class="score-entry-title">
-          <div>
-            <h3>${scoreModeLabel}</h3>
-            <span>${state.scoringMode === "marker" ? `${context.marker} marque ${context.marked}, puis renseigne son propre score.` : state.scoringMode === "centralized" ? "Une personne saisit tous les joueurs de la partie." : "Chaque joueur saisit uniquement sa propre carte."}</span>
-          </div>
-        </div>
-        <div class="metric-row score-metrics">
-          <div class="metric"><strong>${grossPoints}</strong><span>points bruts</span></div>
-          <div class="metric"><strong>${netPoints}</strong><span>points nets</span></div>
-          <div class="metric"><strong>${sampleScorecard.handicap}</strong><span>coups rendus</span></div>
-        </div>
-        <div class="marker-summary">
-          <div><span>Joueur marque</span><strong>${state.scoringMode === "centralized" ? "Toute la partie" : state.scoringMode === "individual" ? verification?.name || context.marker : official?.name || context.marked}</strong></div>
-          <div><span>Marqueur</span><strong>${state.scoringMode === "centralized" ? context.marker : context.marker}</strong></div>
-          <div><span>Carte de verification</span><strong>${verification?.name || context.marker}</strong></div>
-        </div>
         ${renderRoundScorecard(entries, context)}
-        <div class="hole-card">
-          <div class="hole-top">
-            <div><span class="pill blue">Par ${currentPar} - SI ${currentIndex}</span><strong>Trou ${state.hole}</strong></div>
-            <button class="button icon-only" title="Notifications">${icon("bell")}</button>
+        <div class="hole-entry-card">
+          <div class="hole-nav">
+            <button class="button score-nav-button" onclick="state.hole = Math.max(1, state.hole - 1); state.roundValidated = false; render();">Precedent</button>
+            <div class="hole-title">
+              <strong>Trou ${state.hole}</strong>
+              <span>Par ${currentPar} · HCP ${currentIndex}</span>
+            </div>
+            <button class="button score-nav-button" onclick="validateHoleAndAdvance()">Suivant</button>
           </div>
-          <div class="score-inputs">${rows}</div>
+          <div class="score-inputs score-entry-list">${rows}</div>
+          ${renderMobileKeypad(activeLabel)}
         </div>
-        ${renderMobileKeypad(activeLabel)}
-        <button class="button primary" onclick="validateHoleAndAdvance()">${icon("flag")}${state.hole >= 18 ? "Valider le tour" : "Valider le trou"}</button>
-        <div class="empty-note">${state.hole >= 18 ? "La validation du dernier trou verrouille le tour de test et met le leaderboard a jour." : "Quand vous passez au trou suivant, le trou en cours est automatiquement valide et ajoute a l'historique."}</div>
       </div>
-      ${renderLeaderboardPanel()}
     </section>
     ${renderLeaderboardPopup()}
   `;
@@ -1889,7 +1853,6 @@ function scoreRoleLabel(role, points) {
 }
 
 function renderRoundScorecard(entries, context) {
-  const holes = Array.from({ length: 18 }, (_, index) => index + 1);
   const visiblePlayers = entries.map(([, item]) => item.name);
   const groupPlayers = context.groupPlayers.filter((name) => !visiblePlayers.includes(name)).slice(0, Math.max(0, 4 - visiblePlayers.length));
   const names = [...visiblePlayers, ...groupPlayers].slice(0, 4);
@@ -1897,31 +1860,27 @@ function renderRoundScorecard(entries, context) {
     <div class="round-scorecard-wrap">
       <div class="round-scorecard-head">
         <strong>Carte de score de la partie</strong>
-        <span>${context.teeName} · ${names.join(", ")}</span>
+        <span>${context.groupName} · ${context.teeName}</span>
       </div>
-      <div class="round-scorecard-scroll">
-        <table class="round-scorecard">
-          <thead>
-            <tr><th>Joueur</th>${holes.map((hole) => `<th class="${hole === state.hole ? "current" : ""}">${hole}</th>`).join("")}<th>Pts</th></tr>
-          </thead>
-          <tbody>
-            ${names.map((name, playerIndex) => {
-              const match = entries.find(([, item]) => item.name === name)?.[1];
-              const points = match?.points ?? (playerIndex === 0 ? 4 : playerIndex === 1 ? 3 : 2);
-              return `
-                <tr>
-                  <td>${name}</td>
-                  ${holes.map((hole) => {
-                    const currentValue = match?.gross || "";
-                    const sampleValue = hole < state.hole ? Math.max(3, 5 + ((hole + playerIndex) % 3) - 1) : "";
-                    return `<td class="${hole === state.hole ? "current" : ""}">${hole === state.hole ? currentValue || "-" : sampleValue || ""}</td>`;
-                  }).join("")}
-                  <td>${points}</td>
-                </tr>
-              `;
-            }).join("")}
-          </tbody>
-        </table>
+      <div class="party-scorecards">
+        ${names.map((name, playerIndex) => {
+          const match = entries.find(([, item]) => item.name === name)?.[1] || {};
+          const strokes = [24, 16, 28, 20][playerIndex] || sampleScorecard.handicap;
+          const holesPlayed = Math.max(1, state.hole - (playerIndex % 2));
+          const gross = Number(match.gross) ? Number(match.gross) + 11 * holesPlayed + playerIndex * 2 : 82 + playerIndex * 5;
+          const points = match.points || 35 + playerIndex * 2;
+          const putts = Number(match.putts) ? Number(match.putts) + Math.max(0, holesPlayed - 1) : 10 + playerIndex * 4;
+          return `
+            <div class="party-scorecard">
+              <strong>${name}</strong>
+              <span>${strokes} coups rendus</span>
+              <span>${holesPlayed}/18 trous</span>
+              <span>Brut ${gross}</span>
+              <span>${points} pts</span>
+              ${state.puttsEnabled ? `<span>Putts ${putts}</span>` : ""}
+            </div>
+          `;
+        }).join("")}
       </div>
     </div>
   `;
