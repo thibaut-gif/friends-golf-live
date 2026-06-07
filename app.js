@@ -25,6 +25,8 @@ const state = {
   statsRange: "competition",
   savingSetup: false,
   saveStatus: null,
+  activeCompetition: false,
+  cardReturnView: "",
   supabaseIds: {
     userId: null,
     competitionId: null,
@@ -663,6 +665,26 @@ function setView(view) {
   render();
 }
 
+function formulaLabel(value = state.setup.gameFormula) {
+  return gameFormulas.find(([key]) => key === value)?.[1] || value || "Formule a choisir";
+}
+
+function hasActiveCompetition() {
+  return Boolean(
+    state.activeCompetition ||
+    state.supabaseIds.competitionId ||
+    Object.keys(state.scoreCards || {}).length ||
+    state.roundReviewRequired ||
+    state.roundValidated
+  );
+}
+
+function joinCurrentCompetition(target = "score") {
+  state.activeCompetition = true;
+  state.view = target;
+  render();
+}
+
 function setFormat(format) {
   state.format = format;
   render();
@@ -860,21 +882,25 @@ function validateOnboardingRules() {
   const named = namedAccountPlayers();
   const counts = invitationCountsByNamedAccount();
   const overloaded = [...counts.entries()].filter(([, count]) => count > 12);
-  const guestsWithoutEmail = state.setupPlayers.filter((player) => player.accountStatus === "guest" && !String(player.email || "").trim());
+  const incompletePlayers = state.setupPlayers
+    .map((player, index) => ({ player, index }))
+    .filter(({ player }) => !String(player.name || "").trim() || player.index === "" || !Number.isFinite(Number(player.index)));
   if (named.length < 1) {
-    return { valid: false, message: "Ajoutez au moins 1 compte nomme pour creer la competition et envoyer les invitations." };
+    return { valid: false, message: "Ajoutez au moins 1 compte nomme pour creer et administrer la competition." };
   }
   if (isRyderCupMode() && named.length < 2) {
     return { valid: false, message: "Une Ryder Cup doit avoir au moins 2 comptes nommes pour onboarder les autres joueurs." };
+  }
+  if (incompletePlayers.length) {
+    const labels = incompletePlayers.map(({ index }) => `${t("players")} ${index + 1}`).join(", ");
+    return { valid: false, message: `Renseignez le nom et l'index de chaque joueur avant de lancer : ${labels}.` };
   }
   if (overloaded.length) {
     const names = overloaded.map(([index]) => playerName(index)).join(", ");
     return { valid: false, message: `Chaque compte nomme peut inviter 12 joueurs maximum. A corriger : ${names}.` };
   }
-  if (guestsWithoutEmail.length) {
-    return { valid: false, message: "Renseignez un email pour chaque joueur invite afin d'envoyer le lien magique." };
-  }
-  return { valid: true, message: `${named.length} compte(s) nomme(s), ${state.setupPlayers.length - named.length} invite(s) email.` };
+  const invited = state.setupPlayers.filter((player) => player.accountStatus === "guest" && String(player.email || "").trim()).length;
+  return { valid: true, message: `${named.length} compte(s) nomme(s). ${invited} invitation(s) email prevue(s), optionnelles.` };
 }
 
 function setLanguage(language) {
@@ -1713,12 +1739,14 @@ async function saveCompetitionToSupabase() {
     }
 
     state.supabaseIds = {
+      userId: user.id,
       competitionId: competition.id,
       playerIds: players.map((player) => player.id),
       roundIds: rounds.map((round) => round.id),
       groupIds: groups.map((group) => group.id),
       invitationIds: invitations.map((invitation) => invitation.id),
     };
+    state.activeCompetition = true;
     state.saveStatus = { type: "success", message: "Competition sauvegardee dans Supabase avec compte, joueurs, parcours, parties et invitations." };
     return true;
   } catch (error) {
@@ -1753,6 +1781,7 @@ async function nextWizardStep() {
   }
   if (state.wizardStep === steps.length - 1) {
     await saveCompetitionToSupabase();
+    state.activeCompetition = true;
     state.wizardOpen = false;
     state.view = "score";
   } else {
@@ -2053,6 +2082,7 @@ function renderTopbar() {
 function renderDashboard() {
   const sessionActive = isSessionActive();
   const expires = sessionActive ? new Date(state.account.sessionExpiresAt).toLocaleString("fr-FR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "";
+  const activeCompetition = hasActiveCompetition();
   return `
     <section class="hero home-single">
       <div class="hero-main">
@@ -2083,6 +2113,20 @@ function renderDashboard() {
           `}
           ${state.saveStatus ? `<div class="wizard-status ${state.saveStatus.type}">${state.saveStatus.message}</div>` : ""}
         </div>
+        ${sessionActive && activeCompetition ? `
+          <div class="current-game-card">
+            <div>
+              <strong>Partie en cours</strong>
+              <span>${state.setup.competitionName || "Competition FGL"} · ${formulaLabel()} · ${state.setupPlayers.length} joueur(s)</span>
+              <em>Tour ${state.leaderboardRound || 1}/${state.setup.roundCount || 1} · Trou ${state.hole}/18 · ${state.roundReviewRequired ? "Controle des cartes" : state.roundValidated ? "Tour valide" : "Scores en direct"}</em>
+            </div>
+            <div class="current-game-actions">
+              <button class="button primary" onclick="joinCurrentCompetition('score')">Rejoindre la saisie</button>
+              <button class="button" onclick="joinCurrentCompetition('leaderboard')">Classement</button>
+              <button class="button" onclick="joinCurrentCompetition('cards')">Carte de score</button>
+            </div>
+          </div>
+        ` : ""}
       </div>
     </section>
   `;
@@ -2141,8 +2185,17 @@ function closeLeaderboardPopup() {
 
 function openPlayerScorecard(playerName) {
   sampleScorecard.player = playerName || sampleScorecard.player;
+  state.cardReturnView = state.leaderboardOpen ? "leaderboard-popup" : "leaderboard";
   state.view = "cards";
   state.leaderboardOpen = false;
+  render();
+}
+
+function returnFromScorecard() {
+  const target = state.cardReturnView || "leaderboard";
+  state.cardReturnView = "";
+  state.view = "leaderboard";
+  state.leaderboardOpen = target === "leaderboard-popup";
   render();
 }
 
@@ -2835,7 +2888,10 @@ function renderCards() {
         <h3>${t("digitalScorecard")}</h3>
         <span>Comparer, corriger, calculer les points bruts et nets, puis signer</span>
       </div>
-      <span class="pill ${discrepancies.length ? "warning" : "blue"}">${state.roundReviewRequired ? (discrepancies.length ? `${discrepancies.length} ecart(s)` : "Aucun ecart detecte") : "Carte digitale"}</span>
+      <div class="section-actions">
+        ${state.cardReturnView ? `<button class="button small" onclick="returnFromScorecard()">Retour leaderboard</button>` : ""}
+        <span class="pill ${discrepancies.length ? "warning" : "blue"}">${state.roundReviewRequired ? (discrepancies.length ? `${discrepancies.length} ecart(s)` : "Aucun ecart detecte") : "Carte digitale"}</span>
+      </div>
     </div>
     ${state.roundReviewRequired ? `
       <section class="panel pad card-review-panel">

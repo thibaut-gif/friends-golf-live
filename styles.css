@@ -335,6 +335,47 @@ button {
   gap: 10px;
 }
 
+.current-game-card {
+  width: min(720px, 100%);
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid #a9cdbc;
+  border-radius: 8px;
+  background: #f2fbf5;
+  text-align: left;
+}
+
+.current-game-card strong,
+.current-game-card span,
+.current-game-card em {
+  display: block;
+}
+
+.current-game-card strong {
+  font-size: 18px;
+}
+
+.current-game-card span {
+  color: var(--ink);
+  font-weight: 850;
+}
+
+.current-game-card em {
+  color: var(--muted);
+  font-style: normal;
+  font-weight: 750;
+}
+
+.current-game-actions,
+.section-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .hero-actions {
   display: flex;
   flex-wrap: wrap;
