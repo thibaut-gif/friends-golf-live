@@ -2141,6 +2141,48 @@ button {
   background: #fbfcfa;
 }
 
+.compact-hint {
+  margin: 10px 0;
+  padding: 10px 12px;
+  font-size: 13px;
+}
+
+.success-note {
+  border-color: #9bd2ac;
+  color: #17683c;
+  background: #f1fbf4;
+}
+
+.card-review-panel {
+  margin-bottom: 14px;
+}
+
+.card-discrepancy-list {
+  display: grid;
+  gap: 10px;
+  margin: 12px 0;
+}
+
+.card-discrepancy-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) 90px minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid #e97f7f;
+  border-radius: 8px;
+  color: #7b1515;
+  background: #fff1f1;
+  font-weight: 800;
+}
+
+.signature-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
 @media (max-width: 860px) {
   .hero,
   .grid.two,
@@ -2149,7 +2191,7 @@ button {
   }
 
   .hero-main {
-    min-height: 390px;
+    min-height: 300px;
     padding: 20px;
     background-position: center top;
   }
@@ -2170,6 +2212,11 @@ button {
   .team-score {
     grid-template-columns: 1fr 86px 86px 1fr;
   }
+
+  .card-discrepancy-row,
+  .signature-actions {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 560px) {
@@ -2189,6 +2236,18 @@ button {
 
   .hero-main h2 {
     font-size: 36px;
+  }
+
+  .hero-main {
+    min-height: 230px;
+  }
+
+  .home-logo {
+    max-height: 92px;
+  }
+
+  .home-action-panel p {
+    font-size: 14px;
   }
 
   .form-grid,

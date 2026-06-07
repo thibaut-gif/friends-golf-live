@@ -10,6 +10,8 @@ const icons = {
   download: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>',
 };
 
+const APP_STORAGE_VERSION = "fgl-v30-clean";
+
 const state = {
   view: "dashboard",
   format: "stableford",
@@ -47,9 +49,9 @@ const state = {
     endDate: "2026-06-18",
     playerCount: 4,
     roundCount: 1,
-    groupSize: 3,
-    courseName: "Golf de Chantilly - Vineuil",
-    tees: "Jaunes",
+    groupSize: 4,
+    courseName: "",
+    tees: "",
     gameFormula: "stableford-net",
     scrambleSize: 2,
     liveLeaderboard: true,
@@ -57,32 +59,26 @@ const state = {
   },
   locationPermission: "idle",
   setupPlayers: [
-    { name: "Sophie Martin", index: 12.4, email: "sophie@example.com", accountStatus: "named", invitedBy: 0 },
-    { name: "Thomas Keller", index: 8.7, email: "thomas@example.com", accountStatus: "named", invitedBy: 1 },
-    { name: "Ines Duarte", index: 18.1, email: "ines@example.com", accountStatus: "guest", invitedBy: 0 },
-    { name: "Marc Lefevre", index: 21.8, email: "marc@example.com", accountStatus: "guest", invitedBy: 1 },
+    { name: "", index: "", email: "", accountStatus: "named", invitedBy: 0 },
+    { name: "", index: "", email: "", accountStatus: "guest", invitedBy: 0 },
+    { name: "", index: "", email: "", accountStatus: "guest", invitedBy: 0 },
+    { name: "", index: "", email: "", accountStatus: "guest", invitedBy: 0 },
   ],
   roundCourses: [
-    { courseName: "Golf de Chantilly - Vineuil", tees: "Jaunes", selectedCourseId: "chantilly-vineuil" },
+    { courseName: "", tees: "", selectedCourseId: "" },
   ],
   groups: [
     {
       id: "g1",
       name: "Partie 1",
-      playerIndexes: [0, 1, 2],
+      playerIndexes: [0, 1, 2, 3],
       teeTime: "09:10",
       markerAssignments: [
         { playerIndex: 0, marksIndex: 1 },
         { playerIndex: 1, marksIndex: 2 },
-        { playerIndex: 2, marksIndex: 0 },
+        { playerIndex: 2, marksIndex: 3 },
+        { playerIndex: 3, marksIndex: 0 },
       ],
-    },
-    {
-      id: "g2",
-      name: "Partie 2",
-      playerIndexes: [3],
-      teeTime: "09:20",
-      markerAssignments: [{ playerIndex: 3, marksIndex: 3 }],
     },
   ],
   teams: [
@@ -90,11 +86,11 @@ const state = {
     { id: "t2", name: "Equipe 2", playerIndexes: [2, 3] },
   ],
   account: {
-    firstName: "Thibault",
-    lastName: "Chaumais",
-    email: "thibaut@chaumais.com",
+    firstName: "",
+    lastName: "",
+    email: "",
     country: "France",
-    handicap: "16.4",
+    handicap: "",
     licenseNumber: "",
     password: "",
     role: "Organisateur",
@@ -106,18 +102,21 @@ const state = {
   markerAssignments: [
     { playerIndex: 0, marksIndex: 1 },
     { playerIndex: 1, marksIndex: 2 },
-    { playerIndex: 2, marksIndex: 0 },
+    { playerIndex: 2, marksIndex: 3 },
+    { playerIndex: 3, marksIndex: 0 },
   ],
-  hole: 7,
+  scoreCards: {},
+  roundReviewRequired: false,
+  hole: 1,
   roundValidated: false,
   puttsEnabled: true,
   activeScore: { playerKey: "sophie", field: "gross" },
   scoreEvents: [],
   scores: {
-    sophie: { name: "Sophie", gross: 5, putts: 2, points: 3, cardRole: "verification" },
-    thomas: { name: "Thomas", gross: 4, putts: 1, points: 4, cardRole: "official" },
-    ines: { name: "Ines", gross: 6, putts: 2, points: 2, cardRole: "group" },
-    marc: { name: "Marc", gross: 5, putts: 2, points: 3, cardRole: "group" },
+    sophie: { name: "Joueur 1", gross: "", putts: 0, points: 0, cardRole: "verification" },
+    thomas: { name: "Joueur 2", gross: "", putts: 0, points: 0, cardRole: "official" },
+    ines: { name: "Joueur 3", gross: "", putts: 0, points: 0, cardRole: "group" },
+    marc: { name: "Joueur 4", gross: "", putts: 0, points: 0, cardRole: "group" },
   },
 };
 
@@ -496,19 +495,17 @@ const translations = {
 };
 
 const players = [
-  { name: "Sophie Martin", index: 12.4, club: "Paris Country Club", role: "Marqueur" },
-  { name: "Thomas Keller", index: 8.7, club: "Geneva Links", role: "Joueur" },
-  { name: "Ines Duarte", index: 18.1, club: "Estoril Golf", role: "Joueur" },
-  { name: "Marc Lefevre", index: 21.8, club: "Lyon Salvagny", role: "Admin" },
+  { name: "Joueur 1", index: 12.4, club: "Club", role: "Marqueur" },
+  { name: "Joueur 2", index: 8.7, club: "Club", role: "Joueur" },
+  { name: "Joueur 3", index: 18.1, club: "Club", role: "Joueur" },
+  { name: "Joueur 4", index: 21.8, club: "Club", role: "Admin" },
 ];
 
 const leaderboard = [
-  { name: "Thomas Keller", hcp: 9, score: 56, toPar: "-6", thru: 15, pts: 36 },
-  { name: "Sophie Martin", hcp: 12, score: 61, toPar: "-1", thru: 16, pts: 33 },
-  { name: "Ines Duarte", hcp: 18, score: 62, toPar: "E", thru: 15, pts: 31 },
-  { name: "Marc Lefevre", hcp: 22, score: 68, toPar: "+2", thru: 16, pts: 28 },
-  { name: "Nora Silva", hcp: 15, score: 70, toPar: "+4", thru: 16, pts: 26 },
-  { name: "Hugo Bernard", hcp: 11, score: 72, toPar: "+6", thru: 15, pts: 24 },
+  { name: "Joueur 1", hcp: 9, score: 56, toPar: "-6", thru: 15, pts: 36 },
+  { name: "Joueur 2", hcp: 12, score: 61, toPar: "-1", thru: 16, pts: 33 },
+  { name: "Joueur 3", hcp: 18, score: 62, toPar: "E", thru: 15, pts: 31 },
+  { name: "Joueur 4", hcp: 22, score: 68, toPar: "+2", thru: 16, pts: 28 },
 ];
 
 const statsByRange = {
@@ -521,22 +518,17 @@ const statsByRange = {
 };
 
 const matchplayRows = [
-  { red: "Sophie Martin", redHcp: 12, blue: "Thomas Keller", blueHcp: 9, status: "3 UP", thru: 8, side: "blue" },
-  { red: "Ines Duarte", redHcp: 18, blue: "Marc Lefevre", blueHcp: 22, status: "1 UP", thru: 7, side: "red" },
-  { red: "Nora Silva", redHcp: 15, blue: "Hugo Bernard", blueHcp: 11, status: "AS", thru: 5, side: "neutral" },
-  { red: "Julia Moreau", redHcp: 20, blue: "Antoine Petit", blueHcp: 17, status: "2 UP", thru: 6, side: "blue" },
-  { red: "Emma Parker", redHcp: 23, blue: "Tom Collins", blueHcp: 14, status: "AS", thru: "Final", side: "neutral" },
+  { red: "Joueur 1", redHcp: 12, blue: "Joueur 2", blueHcp: 9, status: "3 UP", thru: 8, side: "blue" },
+  { red: "Joueur 3", redHcp: 18, blue: "Joueur 4", blueHcp: 22, status: "1 UP", thru: 7, side: "red" },
 ];
 
 const flights = [
-  { time: "09:10", marker: "Sophie", names: "Sophie, Thomas, Ines", status: "En cours" },
-  { time: "09:20", marker: "Marc", names: "Marc, Julia, Antoine", status: "T6" },
-  { time: "09:30", marker: "Nora", names: "Nora, Hugo, Samir", status: "Depart pret" },
+  { time: "09:10", marker: "Joueur 1", names: "Joueur 1, Joueur 2, Joueur 3, Joueur 4", status: "En cours" },
 ];
 
 const sampleScorecard = {
-  player: "Thomas Keller",
-  marker: "Sophie Martin",
+  player: "Joueur 2",
+  marker: "Joueur 1",
   handicap: 22,
   course: "Golf de Chantilly - Vineuil",
   tee: "Jaunes",
@@ -696,6 +688,7 @@ function sessionExpirationFromCompetition() {
 function persistLocalSession() {
   if (typeof localStorage === "undefined") return;
   localStorage.setItem("fglLocalSession", JSON.stringify({
+    version: APP_STORAGE_VERSION,
     account: state.account,
     savedAt: new Date().toISOString(),
   }));
@@ -705,6 +698,10 @@ function loadLocalSession() {
   if (typeof localStorage === "undefined") return;
   try {
     const saved = JSON.parse(localStorage.getItem("fglLocalSession") || "null");
+    if (saved?.version !== APP_STORAGE_VERSION) {
+      localStorage.removeItem("fglLocalSession");
+      return;
+    }
     if (!saved?.account?.sessionExpiresAt) return;
     if (new Date(saved.account.sessionExpiresAt).getTime() <= Date.now()) {
       localStorage.removeItem("fglLocalSession");
@@ -795,8 +792,12 @@ async function loginAccount() {
   render();
   try {
     const user = await ensureSupabaseUser();
-    await upsertSupabaseProfile(user);
-    state.saveStatus = { type: "success", message: "Connecte a Supabase. Vous pouvez creer une competition sauvegardee." };
+    try {
+      await upsertSupabaseProfile(user);
+      state.saveStatus = { type: "success", message: "Connecte a Supabase. Vous pouvez creer une competition sauvegardee." };
+    } catch (profileError) {
+      state.saveStatus = { type: "warning", message: "Connecte a Supabase, mais le profil n'a pas pu etre mis a jour. Lancez le SQL v30 pour corriger les droits profiles." };
+    }
   } catch (error) {
     state.saveStatus = { type: "warning", message: `Connexion impossible : ${error.message || "verifiez email et mot de passe"}` };
   }
@@ -1077,6 +1078,16 @@ function setGroupSize(size) {
   state.setup.groupSize = Math.max(2, Math.min(4, Number(size) || 3));
   state.groupsGeneratedForCount = 0;
   render();
+}
+
+function availableGroupSizes() {
+  const count = Math.max(1, Number(state.setup.playerCount) || state.setupPlayers.length || 1);
+  if (count === 1) return [1];
+  if (count === 2) return [2];
+  if (count === 3) return [3];
+  if (count === 4) return [2, 4];
+  const sizes = [2, 3, 4].filter((size) => count % size === 0);
+  return sizes.length ? sizes : [4, 3, 2];
 }
 
 function generateGroupsBySize() {
@@ -1474,8 +1485,12 @@ async function createAccount() {
     }
     applySupabaseUser(data.user);
     startAccountSession();
-    await upsertSupabaseProfile(data.user);
-    state.saveStatus = { type: "success", message: "Compte Supabase cree et profil FGL enregistre." };
+    try {
+      await upsertSupabaseProfile(data.user);
+      state.saveStatus = { type: "success", message: "Compte Supabase cree et profil FGL enregistre." };
+    } catch (profileError) {
+      state.saveStatus = { type: "warning", message: "Compte cree et connecte. Lancez le SQL v30 pour autoriser la mise a jour du profil." };
+    }
   } catch (error) {
     state.saveStatus = { type: "warning", message: `Creation du compte impossible : ${error.message || "erreur Supabase"}` };
   }
@@ -1560,7 +1575,11 @@ async function saveCompetitionToSupabase() {
 
   try {
     const user = await ensureSupabaseUser();
-    await upsertSupabaseProfile(user);
+    try {
+      await upsertSupabaseProfile(user);
+    } catch {
+      // Le profil peut etre repare par le SQL v30; la competition reste creee avec l'utilisateur connecte.
+    }
 
     const competitionPayload = {
       name: state.setup.competitionName || "Friends Golf Live",
@@ -1737,6 +1756,7 @@ async function nextWizardStep() {
     state.wizardOpen = false;
     state.view = "score";
   } else {
+    state.saveStatus = null;
     state.wizardStep += 1;
   }
   render();
@@ -1783,6 +1803,19 @@ function updatePlayerPoints(playerKey) {
   state.scores[playerKey].points = Number.isFinite(gross) ? Math.max(0, 9 - gross) : 0;
 }
 
+function persistCurrentScore(playerKey) {
+  if (!playerKey || !state.scores[playerKey]) return;
+  const holeKey = String(state.hole);
+  if (!state.scoreCards[holeKey]) state.scoreCards[holeKey] = {};
+  state.scoreCards[holeKey][playerKey] = {
+    gross: state.scores[playerKey].gross,
+    putts: state.scores[playerKey].putts,
+    points: state.scores[playerKey].points,
+    role: state.scores[playerKey].cardRole,
+    name: state.scores[playerKey].name,
+  };
+}
+
 function recordScoreEvent(type, playerKey, field, previousValue, nextValue) {
   state.scoreEvents.unshift({
     id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
@@ -1809,7 +1842,11 @@ function advanceActiveScore() {
   const keys = scoreKeys();
   const currentIndex = keys.indexOf(active.playerKey);
   const nextKey = keys[currentIndex + 1];
-  state.activeScore = nextKey ? { playerKey: nextKey, field: "gross" } : { playerKey: keys[0], field: "gross" };
+  if (nextKey) {
+    state.activeScore = { playerKey: nextKey, field: "gross" };
+    return;
+  }
+  advanceHoleAfterCompletedEntry();
 }
 
 function keypadScore(value) {
@@ -1820,6 +1857,7 @@ function keypadScore(value) {
   state.scores[active.playerKey][active.field] = value;
   recordScoreEvent("score_update", active.playerKey, active.field, previousValue, value);
   updatePlayerPoints(active.playerKey);
+  persistCurrentScore(active.playerKey);
   advanceActiveScore();
   render();
 }
@@ -1835,7 +1873,9 @@ function abandonActiveScore() {
   const keys = scoreKeys();
   const currentIndex = keys.indexOf(active.playerKey);
   const nextKey = keys[currentIndex + 1];
-  state.activeScore = nextKey ? { playerKey: nextKey, field: "gross" } : { playerKey: keys[0], field: "gross" };
+  persistCurrentScore(active.playerKey);
+  if (nextKey) state.activeScore = { playerKey: nextKey, field: "gross" };
+  else advanceHoleAfterCompletedEntry();
   render();
 }
 
@@ -1846,6 +1886,7 @@ function clearActiveScore() {
   state.scores[active.playerKey][active.field] = active.field === "gross" ? "" : 0;
   recordScoreEvent("score_clear", active.playerKey, active.field, previousValue, state.scores[active.playerKey][active.field]);
   updatePlayerPoints(active.playerKey);
+  persistCurrentScore(active.playerKey);
   render();
 }
 
@@ -1871,23 +1912,108 @@ function scoreEntryContext() {
   };
 }
 
-function validateHoleAndAdvance() {
+function resetCurrentHoleInputs() {
+  Object.keys(state.scores).forEach((key) => {
+    state.scores[key].gross = "";
+    state.scores[key].putts = 0;
+    state.scores[key].points = 0;
+  });
+}
+
+function advanceHoleAfterCompletedEntry() {
   const active = state.activeScore || { playerKey: scoreKeys()[0], field: "gross" };
-  recordScoreEvent("hole_validate", active.playerKey, active.field, state.hole, state.hole);
+  recordScoreEvent("hole_complete", active.playerKey, active.field, state.hole, "Trou complet");
   state.roundValidated = false;
   if (state.hole >= 18) {
-    validateRound();
+    openRoundReview();
     return;
   }
   state.hole += 1;
+  resetCurrentHoleInputs();
+  state.activeScore = { playerKey: scoreKeys()[0], field: "gross" };
+}
+
+function goToPreviousHole() {
+  state.hole = Math.max(1, state.hole - 1);
+  state.roundValidated = false;
+  state.roundReviewRequired = false;
+  const stored = state.scoreCards[String(state.hole)] || {};
+  Object.keys(state.scores).forEach((key) => {
+    state.scores[key].gross = stored[key]?.gross ?? "";
+    state.scores[key].putts = stored[key]?.putts ?? 0;
+    state.scores[key].points = stored[key]?.points ?? 0;
+  });
   state.activeScore = { playerKey: scoreKeys()[0], field: "gross" };
   render();
 }
 
+function goToNextHoleManually() {
+  if (state.hole >= 18) {
+    openRoundReview();
+    return;
+  }
+  state.hole += 1;
+  state.roundValidated = false;
+  const stored = state.scoreCards[String(state.hole)] || {};
+  Object.keys(state.scores).forEach((key) => {
+    state.scores[key].gross = stored[key]?.gross ?? "";
+    state.scores[key].putts = stored[key]?.putts ?? 0;
+    state.scores[key].points = stored[key]?.points ?? 0;
+  });
+  state.activeScore = { playerKey: scoreKeys()[0], field: "gross" };
+  render();
+}
+
+function openRoundReview() {
+  state.roundReviewRequired = true;
+  state.view = "cards";
+  state.saveStatus = { type: "info", message: "Tour termine : controlez les cartes avant signature et validation finale." };
+  render();
+}
+
+function roundDiscrepancies() {
+  const keys = scoreKeys();
+  const officialKey = keys.find((key) => state.scores[key]?.cardRole === "official") || keys[0];
+  const verificationKey = keys.find((key) => state.scores[key]?.cardRole === "verification") || keys[1];
+  if (!officialKey || !verificationKey || officialKey === verificationKey) return [];
+  return Object.entries(state.scoreCards).flatMap(([hole, card]) => {
+    const official = card[officialKey];
+    const verification = card[verificationKey];
+    if (!official || !verification) return [];
+    const mismatch = official.gross !== verification.gross || (state.puttsEnabled && official.putts !== verification.putts);
+    return mismatch ? [{
+      hole: Number(hole),
+      player: official.name || state.scores[officialKey].name,
+      markerValue: official.gross,
+      playerValue: verification.gross,
+      markerPutts: official.putts,
+      playerPutts: verification.putts,
+    }] : [];
+  });
+}
+
+function signRoundCard(role) {
+  const discrepancies = roundDiscrepancies();
+  if (discrepancies.length) {
+    state.saveStatus = { type: "warning", message: "Impossible de signer : corrigez d'abord les ecarts de carte." };
+    render();
+    return;
+  }
+  state.saveStatus = { type: "success", message: role === "marker" ? "Signature marqueur enregistree." : "Signature joueur enregistree." };
+  render();
+}
+
 function validateRound() {
+  const discrepancies = roundDiscrepancies();
+  if (discrepancies.length) {
+    state.saveStatus = { type: "warning", message: "Validation bloquee : des ecarts de carte restent a corriger." };
+    render();
+    return;
+  }
   const active = state.activeScore || { playerKey: scoreKeys()[0], field: "gross" };
   recordScoreEvent("round_validate", active.playerKey, active.field, state.hole, "Tour valide");
   state.roundValidated = true;
+  state.roundReviewRequired = false;
   state.saveStatus = { type: "success", message: "Tour valide. Le leaderboard et l'historique sont mis a jour." };
   render();
 }
@@ -1898,7 +2024,7 @@ function renderTopbar() {
     <header class="topbar">
       <div class="topbar-inner">
         <div class="brand">
-          <div class="brand-mark logo-mark"><img src="assets/fgl-logo-cutout.png" alt="FGL" /></div>
+          <div class="brand-mark logo-mark"><img src="fgl-logo-cutout.png" alt="FGL" /></div>
           <div>
             <h1>Friends Golf Live</h1>
             <span>${t("tagline")}</span>
@@ -1930,10 +2056,10 @@ function renderDashboard() {
   return `
     <section class="hero home-single">
       <div class="hero-main">
-        <img class="hero-photo" src="assets/friends-golf-live-home.jpg" alt="Golfeurs sur le parcours" />
+        <img class="hero-photo" src="friends-golf-live-home.jpg" alt="Golfeurs sur le parcours" />
       </div>
       <div class="home-action-panel">
-        <img class="home-logo" src="assets/fgl-logo-cutout.png" alt="Friends Golf Live - FGL" />
+        <img class="home-logo" src="fgl-logo-cutout.png" alt="Friends Golf Live - FGL" />
         <p>${t("heroText")}</p>
         <div class="home-login-panel">
           <div>
@@ -2144,6 +2270,8 @@ function renderWizardStep(step) {
   `;
   if (step === "groups") {
     ensureGroupsMatchPlayers();
+    const sizes = availableGroupSizes();
+    if (!sizes.includes(Number(state.setup.groupSize))) state.setup.groupSize = sizes[sizes.length - 1] || 4;
     return `
       <div class="wizard-body">
         <h2>${t("groupsTitle")}</h2>
@@ -2152,9 +2280,7 @@ function renderWizardStep(step) {
           <div class="field">
             <label>${t("groupSize")}</label>
             <div class="choice-row">
-              <button class="choice ${Number(state.setup.groupSize) === 2 ? "active" : ""}" onclick="setGroupSize(2)">${t("groupsOf")} 2</button>
-              <button class="choice ${Number(state.setup.groupSize) === 3 ? "active" : ""}" onclick="setGroupSize(3)">${t("groupsOf")} 3</button>
-              <button class="choice ${Number(state.setup.groupSize) === 4 ? "active" : ""}" onclick="setGroupSize(4)">${t("groupsOf")} 4</button>
+              ${sizes.map((size) => `<button class="choice ${Number(state.setup.groupSize) === size ? "active" : ""}" onclick="setGroupSize(${size})">${t("groupsOf")} ${size}</button>`).join("")}
             </div>
           </div>
           <button class="button primary setup-start" onclick="generateGroupsBySize()">${icon("users")}${t("generateGroups")}</button>
@@ -2166,7 +2292,7 @@ function renderWizardStep(step) {
                 <div class="field"><label>${t("group")}</label><input value="${group.name}" oninput="updateGroup(${groupIndex}, 'name', this.value)" /></div>
               </div>
               <div class="form-grid group-select-grid">
-                ${Array.from({ length: Number(state.setup.groupSize) || 3 }).map((_, slotIndex) => renderGroupPlayerSelect(group, groupIndex, slotIndex)).join("")}
+                ${Array.from({ length: group.playerIndexes.length || Number(state.setup.groupSize) || 4 }).map((_, slotIndex) => renderGroupPlayerSelect(group, groupIndex, slotIndex)).join("")}
               </div>
             </div>
           `).join("")}
@@ -2387,13 +2513,14 @@ function renderScore() {
         ${renderRoundScorecard(entries, context)}
         <div class="hole-entry-card">
           <div class="hole-nav">
-            <button class="button score-nav-button" onclick="state.hole = Math.max(1, state.hole - 1); state.roundValidated = false; render();">Precedent</button>
+            <button class="button score-nav-button" onclick="goToPreviousHole()">Precedent</button>
             <div class="hole-title">
               <strong>Trou ${state.hole}</strong>
               <span>Par ${currentPar} · HCP ${currentIndex}</span>
             </div>
-            <button class="button score-nav-button" onclick="validateHoleAndAdvance()">Suivant</button>
+            <button class="button score-nav-button" onclick="goToNextHoleManually()">Suivant</button>
           </div>
+          <div class="empty-note compact-hint">Saisie fluide : score, putts, joueur suivant. Apres le dernier joueur, l'application passe automatiquement au trou suivant.</div>
           <div class="score-inputs score-entry-list">${rows}</div>
           ${renderMobileKeypad(activeLabel)}
         </div>
@@ -2700,6 +2827,7 @@ function renderProfile() {
 function renderCards() {
   const rows = scorecardRows();
   const totals = scorecardTotals(rows);
+  const discrepancies = roundDiscrepancies();
   const cells = (field, formatter = (value) => value) => rows.map((row) => `<td class="${row.mismatch && ["gross", "checkGross"].includes(field) ? "mismatch-cell" : ""}">${formatter(row[field], row)}</td>`).join("");
   return `
     <div class="section-title">
@@ -2707,8 +2835,39 @@ function renderCards() {
         <h3>${t("digitalScorecard")}</h3>
         <span>Comparer, corriger, calculer les points bruts et nets, puis signer</span>
       </div>
-      <span class="pill warning">2 ecarts</span>
+      <span class="pill ${discrepancies.length ? "warning" : "blue"}">${state.roundReviewRequired ? (discrepancies.length ? `${discrepancies.length} ecart(s)` : "Aucun ecart detecte") : "Carte digitale"}</span>
     </div>
+    ${state.roundReviewRequired ? `
+      <section class="panel pad card-review-panel">
+        <div class="panel-head clean">
+          <div>
+            <h3>Controle des cartes avant validation</h3>
+            <span>Comparaison automatique de la carte joueur et de la carte marqueur.</span>
+          </div>
+          <span class="pill ${discrepancies.length ? "warning" : "blue"}">${discrepancies.length ? `${discrepancies.length} ecart(s)` : "Aucun ecart detecte"}</span>
+        </div>
+        ${discrepancies.length ? `
+          <div class="card-discrepancy-list">
+            ${discrepancies.map((item) => `
+              <div class="card-discrepancy-row">
+                <strong>${item.player}</strong>
+                <span>Trou ${item.hole}</span>
+                <span>Joueur : ${item.playerValue}${state.puttsEnabled ? ` / ${item.playerPutts} putts` : ""}</span>
+                <span>Marqueur : ${item.markerValue}${state.puttsEnabled ? ` / ${item.markerPutts} putts` : ""}</span>
+              </div>
+            `).join("")}
+          </div>
+          <div class="empty-note">Corrigez ou confirmez les scores avant signature. La validation finale est bloquee tant qu'un ecart reste ouvert.</div>
+        ` : `
+          <div class="empty-note success-note">Aucun ecart detecte. Les signatures et la validation finale sont autorisees.</div>
+          <div class="signature-actions">
+            <button class="button primary" onclick="signRoundCard('player')">Signer la carte joueur</button>
+            <button class="button" onclick="signRoundCard('marker')">Signer la carte marqueur</button>
+            <button class="button primary" onclick="validateRound()">Valider definitivement le tour</button>
+          </div>
+        `}
+      </section>
+    ` : ""}
     <section class="grid two">
       <div class="panel digital-card">
         <div class="panel-head">
