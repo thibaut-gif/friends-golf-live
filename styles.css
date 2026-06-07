@@ -25,7 +25,7 @@ body {
   margin: 0;
   min-height: 100vh;
   background:
-    linear-gradient(180deg, rgba(18, 59, 43, 0.08), transparent 340px),
+    linear-gradient(180deg, rgba(47, 85, 67, 0.13), transparent 340px),
     var(--bg);
   color: var(--ink);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -219,8 +219,8 @@ button {
 
 .hero {
   display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
-  gap: 16px;
+  grid-template-columns: 1fr;
+  gap: 14px;
   align-items: stretch;
   margin-bottom: 16px;
 }
@@ -230,7 +230,7 @@ button {
 }
 
 .hero-main {
-  min-height: 310px;
+  min-height: min(68vh, 620px);
   padding: 24px;
   display: flex;
   flex-direction: column;
@@ -239,7 +239,7 @@ button {
   overflow: hidden;
   color: white;
   background:
-    linear-gradient(100deg, rgba(13, 42, 31, 0.92) 0%, rgba(13, 42, 31, 0.68) 38%, rgba(13, 42, 31, 0.1) 76%),
+    linear-gradient(180deg, rgba(13, 42, 31, 0.08) 0%, rgba(13, 42, 31, 0.18) 100%),
     url("friends-golf-live-home.jpg");
   background-size: cover;
   background-repeat: no-repeat;
@@ -247,18 +247,27 @@ button {
   box-shadow: var(--shadow);
 }
 
-.hero-main h2 {
+.home-action-panel {
+  max-width: 760px;
+  margin: 0 auto;
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  text-align: center;
+}
+
+.home-action-panel h2 {
   margin: 0;
   max-width: 720px;
   font-size: clamp(32px, 5vw, 58px);
-  line-height: 0.96;
+  line-height: 1;
   letter-spacing: 0;
 }
 
-.hero-main p {
-  margin: 14px 0 0;
+.home-action-panel p {
+  margin: 0;
   max-width: 640px;
-  color: rgba(255, 255, 255, 0.84);
+  color: var(--muted);
   font-size: 16px;
   line-height: 1.45;
 }
@@ -640,7 +649,7 @@ button {
   grid-template-rows: auto minmax(0, 1fr) auto;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: var(--surface);
+  background: #eef4ed;
   box-shadow: 0 24px 70px rgba(16, 32, 26, 0.28);
   overflow: hidden;
 }
@@ -685,22 +694,28 @@ button {
 .wizard-body {
   padding: 18px;
   overflow: auto;
+  display: grid;
+  align-content: center;
 }
 
 .wizard-body h2 {
   margin: 0;
   font-size: 24px;
   letter-spacing: 0;
+  text-align: center;
 }
 
 .wizard-body p {
   margin: 8px 0 16px;
   color: var(--muted);
   line-height: 1.45;
+  text-align: center;
 }
 
 .participant-control.large {
   width: min(260px, 100%);
+  margin: 0 auto;
+  text-align: center;
 }
 
 .participant-control.large input {
@@ -801,6 +816,34 @@ button {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: white;
+}
+
+.group-select-grid {
+  margin-top: 10px;
+}
+
+.round-groups-preview {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.compact-round {
+  display: grid;
+  gap: 8px;
+}
+
+.compact-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.compact-row:last-child {
+  border-bottom: 0;
 }
 
 .player-chip-grid {

@@ -33,6 +33,7 @@ const state = {
   courseSearchTimers: {},
   manualCourseOpen: {},
   manualCourseForms: {},
+  roundGroups: [],
   setup: {
     competitionType: "friends",
     competitionName: "Friends Invitational 2026",
@@ -119,7 +120,7 @@ const translations = {
   FR: {
     tagline: "Jouez entre amis. Scores en direct.",
     homeBadge: "Nouvelle partie entre amis",
-    heroTitle: "Friends Golf Live",
+    heroTitle: "Friends Golf Life",
     heroText: "Créez une partie de golf entre amis, étape par étape, puis saisissez les scores en direct.",
     home: "Accueil",
     create: "Créer",
@@ -701,6 +702,65 @@ function teeTimeForGroup(groupIndex) {
   return `${hour}:${minute}`;
 }
 
+function seededShuffle(items, seed) {
+  return [...items]
+    .map((item, index) => ({ item, weight: Math.sin((index + 1) * 999 + seed * 37) }))
+    .sort((a, b) => a.weight - b.weight)
+    .map((entry) => entry.item);
+}
+
+function pairKey(a, b) {
+  return [Math.min(a, b), Math.max(a, b)].join("-");
+}
+
+function generateBalancedRoundGroups(indexes, size, roundCount) {
+  const pairCounts = new Map();
+  const rounds = [];
+  for (let roundIndex = 0; roundIndex < roundCount; roundIndex += 1) {
+    const available = seededShuffle(indexes, roundIndex + 1);
+    const roundGroups = [];
+    while (available.length) {
+      const group = [available.shift()];
+      while (group.length < size && available.length) {
+        let bestPosition = 0;
+        let bestScore = Infinity;
+        available.forEach((candidate, position) => {
+          const score = group.reduce((sum, playerIndex) => sum + (pairCounts.get(pairKey(candidate, playerIndex)) || 0), 0);
+          if (score < bestScore) {
+            bestScore = score;
+            bestPosition = position;
+          }
+        });
+        group.push(available.splice(bestPosition, 1)[0]);
+      }
+      roundGroups.push(group);
+      group.forEach((playerIndex, firstIndex) => {
+        group.slice(firstIndex + 1).forEach((otherIndex) => {
+          const key = pairKey(playerIndex, otherIndex);
+          pairCounts.set(key, (pairCounts.get(key) || 0) + 1);
+        });
+      });
+    }
+    rounds.push(roundGroups);
+  }
+  return rounds;
+}
+
+function applyGeneratedRoundGroups(roundGroups) {
+  state.roundGroups = roundGroups.map((round, roundIndex) =>
+    round.map((playerIndexes, groupIndex) => ({
+      id: `r${roundIndex + 1}-g${groupIndex + 1}`,
+      name: `${t("group")} ${groupIndex + 1}`,
+      playerIndexes,
+      teeTime: teeTimeForGroup(groupIndex),
+      markerAssignments: buildMarkerAssignments(playerIndexes),
+    }))
+  );
+  state.groups = state.roundGroups[0] || [];
+  state.groupsGeneratedForCount = state.setupPlayers.length;
+  syncFlatMarkerAssignments();
+}
+
 function normalizeGroups() {
   normalizeSetupPlayers();
   const filledIndexes = state.setupPlayers.map((_, index) => index);
@@ -734,19 +794,7 @@ function generateGroupsBySize() {
   normalizeSetupPlayers();
   const size = Math.max(2, Math.min(4, Number(state.setup.groupSize) || 3));
   const indexes = state.setupPlayers.map((_, index) => index);
-  state.groups = [];
-  for (let index = 0; index < indexes.length; index += size) {
-    const playerIndexes = indexes.slice(index, index + size);
-    state.groups.push({
-      id: `g${state.groups.length + 1}`,
-      name: `${t("group")} ${state.groups.length + 1}`,
-      playerIndexes,
-      teeTime: teeTimeForGroup(state.groups.length),
-      markerAssignments: buildMarkerAssignments(playerIndexes),
-    });
-  }
-  state.groupsGeneratedForCount = state.setupPlayers.length;
-  syncFlatMarkerAssignments();
+  applyGeneratedRoundGroups(generateBalancedRoundGroups(indexes, size, Number(state.setup.roundCount) || 1));
   render();
 }
 
@@ -756,19 +804,7 @@ function ensureGroupsMatchPlayers() {
   if (!shouldRegenerate) return;
   const size = Math.max(2, Math.min(4, Number(state.setup.groupSize) || 3));
   const indexes = state.setupPlayers.map((_, index) => index);
-  state.groups = [];
-  for (let index = 0; index < indexes.length; index += size) {
-    const playerIndexes = indexes.slice(index, index + size);
-    state.groups.push({
-      id: `g${state.groups.length + 1}`,
-      name: `${t("group")} ${state.groups.length + 1}`,
-      playerIndexes,
-      teeTime: teeTimeForGroup(state.groups.length),
-      markerAssignments: buildMarkerAssignments(playerIndexes),
-    });
-  }
-  state.groupsGeneratedForCount = state.setupPlayers.length;
-  syncFlatMarkerAssignments();
+  applyGeneratedRoundGroups(generateBalancedRoundGroups(indexes, size, Number(state.setup.roundCount) || 1));
 }
 
 function normalizeTeams() {
@@ -1038,6 +1074,21 @@ function updateGroup(groupIndex, field, value) {
   state.groups[groupIndex][field] = value;
 }
 
+function updateGroupPlayerSlot(groupIndex, slotIndex, playerIndex) {
+  normalizeGroups();
+  const group = state.groups[groupIndex];
+  if (!group) return;
+  const numericPlayerIndex = Number(playerIndex);
+  state.groups.forEach((candidateGroup) => {
+    candidateGroup.playerIndexes = candidateGroup.playerIndexes.filter((existing) => existing !== numericPlayerIndex);
+  });
+  group.playerIndexes[slotIndex] = numericPlayerIndex;
+  group.playerIndexes = [...new Set(group.playerIndexes)].filter((item) => Number.isFinite(item));
+  syncGroupMarkerAssignments(group);
+  syncFlatMarkerAssignments();
+  render();
+}
+
 function addGroup() {
   state.groups.push({ id: `g${Date.now()}`, name: `${t("group")} ${state.groups.length + 1}`, playerIndexes: [], teeTime: teeTimeForGroup(state.groups.length), markerAssignments: [] });
   render();
@@ -1291,7 +1342,7 @@ function renderTopbar() {
         <div class="brand">
           <div class="brand-mark">${icons.flag}</div>
           <div>
-            <h1>Friends Golf Live</h1>
+            <h1>Friends Golf Life</h1>
             <span>${t("tagline")}</span>
           </div>
         </div>
@@ -1319,14 +1370,12 @@ function renderDashboard() {
   return `
     <section class="hero home-single">
       <div class="hero-main">
-        <div>
-          <span class="pill">${t("homeBadge")}</span>
-          <h2>${t("heroTitle")}</h2>
-          <p>${t("heroText")}</p>
-          <div class="hero-actions">
-            <button class="button primary hero-cta" onclick="openWizard()">${icon("plus")}${t("createNewGame")}</button>
-          </div>
-        </div>
+        <div></div>
+      </div>
+      <div class="home-action-panel">
+        <h2>${t("heroTitle")}</h2>
+        <p>${t("heroText")}</p>
+        <button class="button primary hero-cta" onclick="openWizard()">${icon("plus")}${t("createNewGame")}</button>
       </div>
     </section>
   `;
@@ -1477,18 +1526,16 @@ function renderWizardStep(step) {
             <div class="builder-card">
               <div class="form-grid">
                 <div class="field"><label>${t("group")}</label><input value="${group.name}" oninput="updateGroup(${groupIndex}, 'name', this.value)" /></div>
-                <div class="field"><label>${t("teeTime")}</label><input value="${group.teeTime}" oninput="updateGroup(${groupIndex}, 'teeTime', this.value)" /></div>
               </div>
-              <strong class="mini-title">${t("manualPlayers")}</strong>
-              <div class="player-chip-grid">
-                ${state.setupPlayers.map((player, playerIndex) => `
-                  <button class="choice ${group.playerIndexes.includes(playerIndex) ? "active" : ""}" onclick="toggleGroupPlayer(${groupIndex}, ${playerIndex})">${playerName(playerIndex)}</button>
-                `).join("")}
+              <div class="form-grid group-select-grid">
+                ${Array.from({ length: Number(state.setup.groupSize) || 3 }).map((_, slotIndex) => renderGroupPlayerSelect(group, groupIndex, slotIndex)).join("")}
               </div>
             </div>
           `).join("")}
         </div>
         <button class="button setup-start" onclick="addGroup()">${icon("plus")}${t("group")}</button>
+        <strong class="mini-title">Plan des tours generes</strong>
+        ${renderRoundGroupsPreview()}
       </div>
     `;
   }
@@ -1608,6 +1655,38 @@ function renderManualCourseForm(index) {
         <div class="field full"><label>Index des 18 trous</label><input value="${form.indexes}" oninput="updateManualCourseForm(${index}, 'indexes', this.value)" /></div>
       </div>
       <button class="button primary setup-start" onclick="saveManualCourse(${index})">${icon("flag")}Enregistrer ce golf</button>
+    </div>
+  `;
+}
+
+function renderGroupPlayerSelect(group, groupIndex, slotIndex) {
+  const selected = group.playerIndexes[slotIndex];
+  return `
+    <div class="field">
+      <label>${t("players")} ${slotIndex + 1}</label>
+      <select onchange="updateGroupPlayerSlot(${groupIndex}, ${slotIndex}, this.value)">
+        <option value="">Selectionner</option>
+        ${state.setupPlayers.map((player, playerIndex) => `<option value="${playerIndex}" ${selected === playerIndex ? "selected" : ""}>${player.name || `${t("players")} ${playerIndex + 1}`}</option>`).join("")}
+      </select>
+    </div>
+  `;
+}
+
+function renderRoundGroupsPreview() {
+  if (!state.roundGroups.length) return "";
+  return `
+    <div class="round-groups-preview">
+      ${state.roundGroups.map((round, roundIndex) => `
+        <div class="builder-card compact-round">
+          <strong>${t("round")} ${roundIndex + 1}</strong>
+          ${round.map((group) => `
+            <div class="compact-row">
+              <span class="pill">${group.name}</span>
+              <span>${group.playerIndexes.map(playerName).join(" · ")}</span>
+            </div>
+          `).join("")}
+        </div>
+      `).join("")}
     </div>
   `;
 }
@@ -2002,6 +2081,7 @@ if (typeof module !== "undefined") {
     stablefordPoints,
     scorecardRows,
     scorecardTotals,
+    generateBalancedRoundGroups,
     setActiveScore,
     keypadScore,
     clearActiveScore,
