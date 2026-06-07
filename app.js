@@ -19,6 +19,7 @@ const state = {
   wizardOpen: false,
   wizardStep: 0,
   leaderboardOpen: false,
+  statsRange: "competition",
   savingSetup: false,
   saveStatus: null,
   supabaseIds: {
@@ -475,10 +476,29 @@ const players = [
 ];
 
 const leaderboard = [
-  { name: "Thomas Keller", thru: "T7", net: "-4", pts: 24 },
-  { name: "Sophie Martin", thru: "T7", net: "-2", pts: 21 },
-  { name: "Ines Duarte", thru: "T7", net: "E", pts: 18 },
-  { name: "Marc Lefevre", thru: "T6", net: "+1", pts: 16 },
+  { name: "Thomas Keller", hcp: 9, score: 56, toPar: "-6", thru: 15, pts: 36 },
+  { name: "Sophie Martin", hcp: 12, score: 61, toPar: "-1", thru: 16, pts: 33 },
+  { name: "Ines Duarte", hcp: 18, score: 62, toPar: "E", thru: 15, pts: 31 },
+  { name: "Marc Lefevre", hcp: 22, score: 68, toPar: "+2", thru: 16, pts: 28 },
+  { name: "Nora Silva", hcp: 15, score: 70, toPar: "+4", thru: 16, pts: 26 },
+  { name: "Hugo Bernard", hcp: 11, score: 72, toPar: "+6", thru: 15, pts: 24 },
+];
+
+const statsByRange = {
+  today: { label: "Aujourd'hui", rounds: 1, average: 88.0, best: 88, allTime: 78, distribution: [0, 6, 42, 33, 19], counts: [0, 0, 2, 8, 6, 2] },
+  round: { label: "Tour en cours", rounds: 1, average: 88.0, best: 88, allTime: 78, distribution: [0, 11, 44, 28, 17], counts: [0, 0, 2, 7, 5, 3] },
+  competition: { label: "Competition", rounds: 4, average: 91.5, best: 83, allTime: 78, distribution: [6, 11, 44, 28, 11], counts: [0, 0, 7, 34, 22, 9] },
+  month: { label: "Mois", rounds: 8, average: 93.2, best: 82, allTime: 78, distribution: [4, 9, 41, 31, 15], counts: [0, 0, 18, 84, 64, 29] },
+  year: { label: "Annee", rounds: 20, average: 94.86, best: 83, allTime: 78, distribution: [6, 11, 44, 28, 11], counts: [0, 0, 84, 702, 1096, 495] },
+  all: { label: "Depuis le debut", rounds: 52, average: 95.4, best: 78, allTime: 78, distribution: [5, 10, 40, 30, 15], counts: [1, 0, 221, 1820, 2460, 1040] },
+};
+
+const matchplayRows = [
+  { red: "Sophie Martin", redHcp: 12, blue: "Thomas Keller", blueHcp: 9, status: "3 UP", thru: 8, side: "blue" },
+  { red: "Ines Duarte", redHcp: 18, blue: "Marc Lefevre", blueHcp: 22, status: "1 UP", thru: 7, side: "red" },
+  { red: "Nora Silva", redHcp: 15, blue: "Hugo Bernard", blueHcp: 11, status: "AS", thru: 5, side: "neutral" },
+  { red: "Julia Moreau", redHcp: 20, blue: "Antoine Petit", blueHcp: 17, status: "2 UP", thru: 6, side: "blue" },
+  { red: "Emma Parker", redHcp: 23, blue: "Tom Collins", blueHcp: 14, status: "AS", thru: "Final", side: "neutral" },
 ];
 
 const flights = [
@@ -614,6 +634,11 @@ function setView(view) {
 
 function setFormat(format) {
   state.format = format;
+  render();
+}
+
+function setStatsRange(range) {
+  state.statsRange = range;
   render();
 }
 
@@ -1433,13 +1458,10 @@ function renderDashboard() {
   return `
     <section class="hero home-single">
       <div class="hero-main">
-        <div class="hero-logo-panel">
-          <img src="fgl-logo.png" alt="Friends Golf Live - FGL" />
-        </div>
+        <div></div>
       </div>
       <div class="home-action-panel">
-        <span class="pill blue">FGL</span>
-        <h2>${t("heroTitle")}</h2>
+        <img class="home-logo" src="fgl-logo.png" alt="Friends Golf Live - FGL" />
         <p>${t("heroText")}</p>
         <button class="button primary hero-cta" onclick="openWizard()">${icon("plus")}${t("createNewGame")}</button>
       </div>
@@ -1921,7 +1943,7 @@ function renderLeaderboard() {
     <div class="section-title">
       <div>
         <h3>Leaderboard</h3>
-        <span>Classements brut, net et Stableford</span>
+        <span>Score brut, ecart au par, trou joue et points Stableford</span>
       </div>
       <div class="segmented">
         <button class="${state.format === "stableford" ? "active" : ""}" onclick="setFormat('stableford')">Pts</button>
@@ -1929,18 +1951,102 @@ function renderLeaderboard() {
         <button class="${state.format === "brut" ? "active" : ""}" onclick="setFormat('brut')">Brut</button>
       </div>
     </div>
-    <section class="grid two">
-      ${renderLeaderboardPanel(false)}
-      <div class="panel">
-        <div class="panel-head"><div><h3>Animations</h3><span>Evenements de competition</span></div></div>
-        <div class="panel pad audit-list">
-          <div class="audit-item"><span class="avatar">TK</span><div><strong>Nouveau leader</strong><span>Thomas passe devant au trou 7</span></div><span class="pill">Live</span></div>
-          <div class="audit-item"><span class="avatar">SM</span><div><strong>Birdie</strong><span>Sophie marque 4 points Stableford</span></div><span class="pill blue">Notif</span></div>
-          <div class="audit-item"><span class="avatar">ID</span><div><strong>Carte a verifier</strong><span>Score inconnu detecte au trou 5</span></div><span class="pill warning">Action</span></div>
-        </div>
+    ${renderLeaderboardPanel(false)}
+    ${renderLeaderboardPopup()}
+  `;
+}
+
+function renderStats() {
+  const stats = statsByRange[state.statsRange] || statsByRange.competition;
+  const bars = [
+    ["Eagle", stats.distribution[0], "eagle"],
+    ["Birdie", stats.distribution[1], "birdie"],
+    ["Par", stats.distribution[2], "par"],
+    ["Bogey", stats.distribution[3], "bogey"],
+    ["D.Bogey", stats.distribution[4], "double"],
+  ];
+  const counts = [
+    ["HIO", stats.counts[0]],
+    ["Better", stats.counts[1]],
+    ["Birdie", stats.counts[2]],
+    ["Par", stats.counts[3]],
+    ["Bogey", stats.counts[4]],
+    ["Worse", stats.counts[5]],
+  ];
+  return `
+    <div class="section-title">
+      <div>
+        <h3>Statistiques</h3>
+        <span>Lecture par jour, tour, competition, mois, annee ou depuis le debut</span>
+      </div>
+      <div class="segmented stats-ranges">
+        ${Object.entries(statsByRange).map(([key, item]) => `
+          <button class="${state.statsRange === key ? "active" : ""}" onclick="setStatsRange('${key}')">${item.label}</button>
+        `).join("")}
+      </div>
+    </div>
+    <section class="panel stats-panel">
+      <div class="stats-head">
+        <strong>Scores</strong>
+        <span>${stats.label}</span>
+      </div>
+      <div class="stats-grid">
+        <div><span>Parties</span><strong>${stats.rounds}</strong></div>
+        <div><span>Moyenne coups</span><strong>${stats.average}</strong></div>
+        <div><span>Meilleur score</span><strong>${stats.best}</strong></div>
+        <div><span>Record</span><strong>${stats.allTime}</strong></div>
+      </div>
+      <div class="result-bars">
+        ${bars.map(([label, value, type]) => `
+          <div class="result-bar ${type}">
+            <strong>${value}%</strong>
+            <span style="height:${Math.max(20, value * 2)}px"></span>
+            <em>${label}</em>
+          </div>
+        `).join("")}
+      </div>
+      <div class="stat-counts">
+        ${counts.map(([label, value]) => `<div><strong>${value}</strong><span>${label}</span></div>`).join("")}
       </div>
     </section>
-    ${renderLeaderboardPopup()}
+  `;
+}
+
+function renderMatchplay() {
+  return `
+    <div class="section-title">
+      <div>
+        <h3>Matchplay equipes</h3>
+        <span>Suivi Ryder Cup : match par match, score projete et avance au trou</span>
+      </div>
+      <span class="pill blue">Stableford NET</span>
+    </div>
+    <section class="matchplay-board">
+      <div class="matchplay-header">
+        <strong>West vs East R2</strong>
+        <span>Hill Course</span>
+      </div>
+      <div class="team-score">
+        <span class="red">Team Reds</span>
+        <strong class="red-box">2½</strong>
+        <strong class="blue-box">3½</strong>
+        <span class="blue">Team Blues</span>
+      </div>
+      <div class="projected-score">
+        <strong class="red">4</strong>
+        <span>Projete</span>
+        <strong class="blue">6</strong>
+      </div>
+      <div class="match-list">
+        ${matchplayRows.map((row) => `
+          <div class="match-row ${row.side}">
+            <div><strong>${row.red}</strong><span>HCP ${row.redHcp}</span></div>
+            <div class="match-status"><strong>${row.status}</strong><span>${row.thru === "Final" ? "Final" : `Thru ${row.thru}`}</span></div>
+            <div><strong>${row.blue}</strong><span>HCP ${row.blueHcp}</span></div>
+          </div>
+        `).join("")}
+      </div>
+    </section>
   `;
 }
 
@@ -2113,17 +2219,21 @@ function renderFlightsCompact() {
 
 function renderLeaderboardPanel(compact = true) {
   return `
-    <div class="panel">
+    <div class="panel leaderboard-card">
       <div class="panel-head">
         <div><h3>Leaderboard</h3><span>${compact ? "Top actuel" : "Classement complet"}</span></div>
         <button class="button small" onclick="openLeaderboardPopup()">${icon("trophy")}Voir</button>
       </div>
-      <div class="panel pad leaderboard">
+      <div class="leaderboard-table">
+        <div class="leaderboard-head"><span>#</span><span>Nom</span><span>Score</span><span>Par</span><span>Thru</span><span>Pts</span></div>
         ${leaderboard.map((row, index) => `
-          <div class="leader-row">
-            <span class="rank">${index + 1}</span>
-            <div><strong>${row.name}</strong><span>${row.thru} - net ${row.net}</span></div>
-            <div class="score-value">${row.pts}<span>points</span></div>
+          <div class="leaderboard-line ${index === 0 ? "leader" : ""}">
+            <span>${index + 1}</span>
+            <div><strong>${row.name}</strong><em>HCP ${row.hcp}</em></div>
+            <strong>${row.score}</strong>
+            <strong class="${String(row.toPar).startsWith("-") ? "under-par" : String(row.toPar).startsWith("+") ? "over-par" : ""}">${row.toPar}</strong>
+            <span>${row.thru}</span>
+            <strong>${row.pts}</strong>
           </div>
         `).join("")}
       </div>
@@ -2144,13 +2254,13 @@ function renderLeaderboardPopup() {
           <button class="button small" onclick="closeLeaderboardPopup()">Fermer</button>
         </header>
         <div class="augusta-board">
-          <div class="augusta-row header"><span>#</span><span>Joueur</span><span>Thru</span><span>Net</span><span>Pts</span></div>
+          <div class="augusta-row header"><span>#</span><span>Joueur</span><span>Score</span><span>Par</span><span>Pts</span></div>
           ${leaderboard.map((row, index) => `
             <div class="augusta-row">
               <span>${index + 1}</span>
               <strong>${row.name}</strong>
-              <span>${row.thru}</span>
-              <span>${row.net}</span>
+              <span>${row.score}</span>
+              <span>${row.toPar}</span>
               <span>${row.pts}</span>
             </div>
           `).join("")}
@@ -2186,6 +2296,8 @@ function renderTabs() {
     ["score", "score", t("score")],
     ["cards", "shield", t("cards")],
     ["leaderboard", "trophy", t("ranking")],
+    ["stats", "score", "Stats"],
+    ["matchplay", "users", "Matchplay"],
     ["security", "shield", t("security")],
   ];
 
@@ -2208,6 +2320,8 @@ function renderCurrentView() {
   if (state.view === "score") return renderScore();
   if (state.view === "cards") return renderCards();
   if (state.view === "leaderboard") return renderLeaderboard();
+  if (state.view === "stats") return renderStats();
+  if (state.view === "matchplay") return renderMatchplay();
   if (state.view === "security") return renderSecurity();
   return renderDashboard();
 }
