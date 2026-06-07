@@ -652,6 +652,14 @@ function setStatsRange(range) {
   render();
 }
 
+function isRyderCupMode() {
+  return state.setup.competitionType === "rydercup" || state.setup.gameFormula === "ryder-cup";
+}
+
+function isMatchplayLeaderboardMode() {
+  return ["matchplay", "rydercup"].includes(state.setup.competitionType) || ["match-play", "ryder-cup"].includes(state.setup.gameFormula);
+}
+
 function setLanguage(language) {
   state.language = language;
   state.languageMenuOpen = false;
@@ -682,7 +690,27 @@ function setWizardStep(step) {
 
 function updateSetup(field, value) {
   state.setup[field] = value;
+  if (field === "competitionType") {
+    if (value === "matchplay") {
+      state.setup.gameFormula = "match-play";
+      state.setup.playerCount = 2;
+      state.setup.groupSize = 2;
+    }
+    if (value === "rydercup") state.setup.gameFormula = "ryder-cup";
+  }
+  if (field === "gameFormula") {
+    if (value === "match-play") {
+      state.setup.competitionType = "matchplay";
+      state.setup.playerCount = 2;
+      state.setup.groupSize = 2;
+    }
+    if (value === "ryder-cup") state.setup.competitionType = "rydercup";
+  }
   if (field === "playerCount") {
+    normalizeSetupPlayers();
+    state.groupsGeneratedForCount = 0;
+  }
+  if (["competitionType", "gameFormula"].includes(field)) {
     normalizeSetupPlayers();
     state.groupsGeneratedForCount = 0;
   }
@@ -848,6 +876,15 @@ function ensureGroupsMatchPlayers() {
 
 function normalizeTeams() {
   normalizeSetupPlayers();
+  if (isRyderCupMode()) {
+    const indexes = state.setupPlayers.map((_, index) => index);
+    const split = Math.ceil(indexes.length / 2);
+    state.teams = [
+      { id: "red", name: "Team Reds", playerIndexes: indexes.slice(0, split) },
+      { id: "blue", name: "Team Blues", playerIndexes: indexes.slice(split) },
+    ];
+    return;
+  }
   const size = Number(state.setup.scrambleSize) || 2;
   const indexes = state.setupPlayers.map((_, index) => index);
   state.teams = [];
@@ -1480,8 +1517,8 @@ function renderDashboard() {
 }
 
 function getWizardSteps() {
-  const steps = ["competition", "playerCount", "players", "rounds", "course", "formula"];
-  if (String(state.setup.gameFormula).includes("scramble")) steps.push("teams");
+  const steps = ["competition", "rounds", "course", "formula", "playerCount", "players"];
+  if (String(state.setup.gameFormula).includes("scramble") || isRyderCupMode()) steps.push("teams");
   steps.push("groups", "scoringMode");
   if (state.scoringMode === "marker") steps.push("markerAssign");
   steps.push("options");
@@ -1494,6 +1531,7 @@ const gameFormulas = [
   ["stroke-net", "Stroke play net"],
   ["stroke-gross", "Stroke play brut"],
   ["match-play", "Match play"],
+  ["ryder-cup", "Ryder Cup - equipes"],
   ["chouette", "Chouette - 3 joueurs / 6 points"],
   ["skins", "Skins game"],
   ["scramble", "Scramble"],
@@ -1509,6 +1547,7 @@ const formulaDescriptions = {
   "stroke-net": "Stroke play net : total des coups joues moins les coups rendus.",
   "stroke-gross": "Stroke play brut : total des coups joues, sans correction d'index.",
   "match-play": "Match play : chaque trou se gagne, se perd ou se partage. Le score se compte en trous.",
+  "ryder-cup": "Ryder Cup : deux equipes s'affrontent en plusieurs matchs. Le classement affiche les matchs et le score par equipe.",
   chouette: "Chouette : partie a 3 joueurs, 6 points par trou selon les scores compares.",
   skins: "Skins game : chaque trou vaut un enjeu. En cas d'egalite, l'enjeu peut etre reporte.",
   scramble: "Scramble : chaque joueur joue, l'equipe choisit la meilleure balle, puis tous rejouent de cet endroit.",
@@ -1673,19 +1712,20 @@ function renderWizardStep(step) {
   }
   if (step === "teams") {
     normalizeTeams();
+    const teamSlots = isRyderCupMode() ? Math.ceil((Number(state.setup.playerCount) || state.setupPlayers.length || 2) / 2) : Number(state.setup.scrambleSize) || 2;
     return `
       <div class="wizard-body">
         <h2>${t("teamsTitle")}</h2>
-        <p>${t("teamsHelp")}</p>
-        <div class="choice-row">
+        <p>${isRyderCupMode() ? "Creez deux equipes qui s'affrontent sur les matchs." : t("teamsHelp")}</p>
+        ${isRyderCupMode() ? `<div class="empty-note">Ryder Cup : les joueurs sont repartis en deux equipes. Vous pourrez ensuite ajuster les matchs dans le classement.</div>` : `<div class="choice-row">
           <button class="choice ${Number(state.setup.scrambleSize) === 2 ? "active" : ""}" onclick="setScrambleSize(2)">${t("scrambleSize")} 2</button>
           <button class="choice ${Number(state.setup.scrambleSize) === 4 ? "active" : ""}" onclick="setScrambleSize(4)">${t("scrambleSize")} 4</button>
-        </div>
+        </div>`}
         <div class="team-list">
           ${state.teams.map((team, teamIndex) => `
             <div class="builder-card">
               <strong>${team.name}</strong>
-              ${Array.from({ length: Number(state.setup.scrambleSize) || 2 }).map((_, slotIndex) => `
+              ${Array.from({ length: teamSlots }).map((_, slotIndex) => `
                 <div class="field">
                   <label>${t("players")} ${slotIndex + 1}</label>
                   <select onchange="updateTeamPlayer(${teamIndex}, ${slotIndex}, this.value)">
@@ -1958,20 +1998,21 @@ function renderMobileKeypad(activeLabel) {
 }
 
 function renderLeaderboard() {
-  const teamMode = ["matchplay", "rydercup"].includes(state.setup.competitionType);
+  const teamMode = isMatchplayLeaderboardMode();
+  const teamModeLabel = state.setup.gameFormula === "ryder-cup" || state.setup.competitionType === "rydercup" ? "Ryder Cup" : "Match play";
   return `
     <div class="section-title">
       <div>
         <h3>Leaderboard</h3>
         <span>${teamMode ? "Matchs, equipes et score projete" : "Score brut, ecart au par, trou joue et points Stableford"}</span>
       </div>
-      ${teamMode ? `<span class="pill blue">${state.setup.competitionType === "rydercup" ? "Ryder Cup" : "Match play"}</span>` : `<div class="segmented">
+      ${teamMode ? `<span class="pill blue">${teamModeLabel}</span>` : `<div class="segmented">
         <button class="${state.format === "stableford" ? "active" : ""}" onclick="setFormat('stableford')">Pts</button>
         <button class="${state.format === "net" ? "active" : ""}" onclick="setFormat('net')">Net</button>
         <button class="${state.format === "brut" ? "active" : ""}" onclick="setFormat('brut')">Brut</button>
       </div>`}
     </div>
-    ${teamMode ? renderMatchplay() : renderLeaderboardPanel(false)}
+    ${teamMode ? renderMatchplay(false) : renderLeaderboardPanel(false)}
     ${teamMode ? "" : renderLeaderboardPopup()}
   `;
 }
@@ -2032,15 +2073,15 @@ function renderStats() {
   `;
 }
 
-function renderMatchplay() {
+function renderMatchplay(showTitle = true) {
   return `
-    <div class="section-title">
+    ${showTitle ? `<div class="section-title">
       <div>
         <h3>Matchplay equipes</h3>
         <span>Suivi Ryder Cup : match par match, score projete et avance au trou</span>
       </div>
       <span class="pill blue">Stableford NET</span>
-    </div>
+    </div>` : ""}
     <section class="matchplay-board">
       <div class="matchplay-header">
         <strong>West vs East R2</strong>
