@@ -60,6 +60,7 @@ const state = {
     cardSignature: true,
   },
   locationPermission: "idle",
+  userLocation: null,
   setupPlayers: [
     { name: "", index: "", email: "", accountStatus: "named", invitedBy: 0 },
     { name: "", index: "", email: "", accountStatus: "guest", invitedBy: 0 },
@@ -605,6 +606,23 @@ function getSupabaseFunctionUrl(functionName) {
   return `${config.url.replace(/\/$/, "")}/functions/v1/${functionName}`;
 }
 
+function golfApiErrorMessage(error, mode = "search") {
+  const message = error?.message || "";
+  if (message.includes("401")) {
+    return "API 401 : Supabase refuse l'appel. Dans Edge Functions > search-golf-courses > Settings, desactivez Verify JWT, puis reessayez.";
+  }
+  if (message.includes("404")) {
+    return "API 404 : la fonction search-golf-courses est introuvable dans Supabase.";
+  }
+  if (message.includes("500")) {
+    return "API 500 : verifiez le secret GOLFCOURSEAPI_KEY et les logs de la fonction Supabase.";
+  }
+  if (mode === "nearby") {
+    return `Recherche proche impossible : ${message || "API indisponible"}.`;
+  }
+  return "API golf indisponible ou aucun resultat. Essayez un nom plus precis ou scannez une carte de score.";
+}
+
 function getAppRedirectUrl() {
   if (typeof window === "undefined") return undefined;
   return window.location.href.split("#")[0].split("?")[0];
@@ -750,8 +768,11 @@ function applySupabaseUser(user) {
   if (!user) return;
   state.account.userId = user.id;
   state.account.email = user.email || state.account.email;
+  state.account.firstName = state.account.firstName || user.user_metadata?.first_name || "";
+  state.account.lastName = state.account.lastName || user.user_metadata?.last_name || "";
   state.account.authProvider = "supabase";
   state.supabaseIds.userId = user.id;
+  syncCreatorPlayer();
 }
 
 async function loadSupabaseSession() {
@@ -953,7 +974,32 @@ function updateSetup(field, value) {
   if (field === "roundCount") normalizeRoundCourses();
 }
 
-function normalizeSetupPlayers() {
+function creatorPlayerPayload() {
+  const name = fullAccountName();
+  return {
+    name: name === "Joueur FGL" ? "" : name,
+    index: state.account.handicap ?? "",
+    email: state.account.email || "",
+    accountStatus: "named",
+    invitedBy: 0,
+  };
+}
+
+function syncCreatorPlayer() {
+  normalizeSetupPlayers(false);
+  const creator = creatorPlayerPayload();
+  state.setupPlayers[0] = {
+    ...state.setupPlayers[0],
+    ...creator,
+    name: creator.name || state.setupPlayers[0]?.name || "",
+    index: creator.index !== "" ? creator.index : state.setupPlayers[0]?.index ?? "",
+    email: creator.email || state.setupPlayers[0]?.email || "",
+    accountStatus: "named",
+    invitedBy: 0,
+  };
+}
+
+function normalizeSetupPlayers(syncCreator = true) {
   const target = Math.max(1, Math.min(120, Number(state.setup.playerCount) || 1));
   state.setup.playerCount = target;
   while (state.setupPlayers.length < target) {
@@ -970,6 +1016,9 @@ function normalizeSetupPlayers() {
   if (isRyderCupMode() && state.setupPlayers.length >= 2) {
     state.setupPlayers[0].accountStatus = state.setupPlayers[0].accountStatus || "named";
     state.setupPlayers[1].accountStatus = state.setupPlayers[1].accountStatus || "named";
+  }
+  if (syncCreator && (state.account.email || state.account.firstName || state.account.lastName || state.account.handicap)) {
+    syncCreatorPlayer();
   }
 }
 
@@ -1161,6 +1210,7 @@ function normalizeMarkerAssignments() {
 
 function updatePlayerSetup(index, field, value) {
   normalizeSetupPlayers();
+  if (index === 0 && field === "accountStatus") value = "named";
   state.setupPlayers[index][field] = value;
 }
 
@@ -1283,9 +1333,55 @@ async function saveManualCourse(index) {
   render();
 }
 
-function requestLocationCourses() {
-  state.locationPermission = "granted";
+async function requestLocationCourses() {
+  state.locationPermission = "pending";
+  state.courseApiStatus[0] = "Bouton localisation active. Verification du navigateur...";
   render();
+
+  if (typeof navigator === "undefined" || !navigator.geolocation) {
+    state.locationPermission = "denied";
+    state.courseApiStatus[0] = "Geolocalisation indisponible sur ce navigateur.";
+    render();
+    return;
+  }
+
+  if (typeof window !== "undefined" && !window.isSecureContext) {
+    state.locationPermission = "denied";
+    state.courseApiStatus[0] = "La localisation fonctionne uniquement en HTTPS, localhost ou 127.0.0.1.";
+    render();
+    return;
+  }
+
+  const functionName = getSupabaseConfig()?.golfSearchFunction || "search-golf-courses";
+  const functionUrl = getSupabaseFunctionUrl(functionName);
+  const config = getSupabaseConfig();
+  if (!functionUrl || !config?.publishableKey) {
+    state.locationPermission = "denied";
+    state.courseApiStatus[0] = "Fonction API golf non configuree. Verifiez Supabase et le nom search-golf-courses.";
+    render();
+    return;
+  }
+
+  state.courseApiStatus[0] = "Demande d'autorisation de localisation...";
+  render();
+  navigator.geolocation.getCurrentPosition(
+    async (position) => {
+      state.locationPermission = "granted";
+      state.userLocation = {
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+      };
+      state.courseApiStatus[0] = "Position recue. Recherche des golfs proches...";
+      render();
+      await loadNearbyGolfApiResults(0);
+    },
+    (error) => {
+      state.locationPermission = "denied";
+      state.courseApiStatus[0] = error?.message || "Autorisation de localisation refusee. Activez la localisation dans le navigateur.";
+      render();
+    },
+    { enableHighAccuracy: true, timeout: 10000, maximumAge: 10 * 60 * 1000 }
+  );
 }
 
 function searchCourseInput(index, value) {
@@ -1357,13 +1453,46 @@ async function loadGolfApiResults(index, value) {
     state.courseApiStatus[index] = state.courseSearchResults[index].length ? "Resultats GolfCourseAPI" : "Aucun golf trouve dans l'API.";
   } catch (error) {
     state.courseSearchResults[index] = [];
-    state.courseApiStatus[index] = "API golf indisponible ou aucun resultat. Essayez un nom plus precis ou scannez une carte de score.";
+    state.courseApiStatus[index] = golfApiErrorMessage(error, "search");
   }
   const card = document.querySelector(`[data-course-card="${index}"]`);
   const target = card?.querySelector("[data-course-suggestions]");
   const nextStatus = card?.querySelector("[data-course-api-status]");
   if (target) target.innerHTML = renderCourseSuggestions(index);
   if (nextStatus) nextStatus.textContent = state.courseApiStatus[index];
+}
+
+async function loadNearbyGolfApiResults(index) {
+  const functionName = getSupabaseConfig()?.golfSearchFunction || "search-golf-courses";
+  const functionUrl = getSupabaseFunctionUrl(functionName);
+  const config = getSupabaseConfig();
+  const location = state.userLocation;
+  if (!location || !functionUrl || !config?.publishableKey) {
+    state.courseApiStatus[index] = "Fonction API golf ou position non configuree.";
+    render();
+    return;
+  }
+  try {
+    const params = new URLSearchParams({
+      lat: String(location.latitude),
+      lng: String(location.longitude),
+      radius: "50",
+    });
+    const response = await fetch(`${functionUrl}?${params.toString()}`, {
+      headers: {
+        apikey: config.publishableKey,
+        Authorization: `Bearer ${config.publishableKey}`,
+      },
+    });
+    if (!response.ok) throw new Error(`API ${response.status}`);
+    const payload = await response.json();
+    state.courseSearchResults[index] = Array.isArray(payload.courses) ? payload.courses : [];
+    state.courseApiStatus[index] = state.courseSearchResults[index].length ? "Golfs proches trouves." : "Aucun golf proche trouve par l'API.";
+  } catch (error) {
+    state.courseSearchResults[index] = [];
+    state.courseApiStatus[index] = golfApiErrorMessage(error, "nearby");
+  }
+  render();
 }
 
 function handleScorecardPhoto(index, input) {
@@ -1461,6 +1590,7 @@ function updateTeamPlayer(teamIndex, slotIndex, playerIndex) {
 
 function updateAccount(field, value) {
   state.account[field] = value;
+  if (["firstName", "lastName", "email", "handicap"].includes(field)) syncCreatorPlayer();
 }
 
 async function createAccount() {
@@ -2275,12 +2405,12 @@ function renderWizardStep(step) {
         <div class="player-editor">
           ${state.setupPlayers.map((player, index) => `
             <div class="player-edit-row">
-              <span class="rank">${index + 1}</span>
+              <span class="rank" title="${index === 0 ? "Createur connecte" : ""}">${index === 0 ? "Moi" : index + 1}</span>
               <input aria-label="${t("name")} ${index + 1}" placeholder="${t("name")}" value="${player.name}" oninput="updatePlayerSetup(${index}, 'name', this.value)" />
               <input aria-label="${t("index")} ${index + 1}" placeholder="${t("index")}" type="number" step="0.1" value="${player.index}" oninput="updatePlayerSetup(${index}, 'index', this.value)" />
               <input aria-label="Email ${index + 1}" placeholder="email invitation" type="email" value="${player.email || ""}" oninput="updatePlayerSetup(${index}, 'email', this.value)" />
               <select aria-label="Statut ${index + 1}" onchange="updatePlayerSetup(${index}, 'accountStatus', this.value); render();">
-                <option value="guest" ${player.accountStatus === "guest" ? "selected" : ""}>Invite email</option>
+                ${index === 0 ? "" : `<option value="guest" ${player.accountStatus === "guest" ? "selected" : ""}>Invite email</option>`}
                 <option value="named" ${player.accountStatus === "named" ? "selected" : ""}>Compte nomme</option>
               </select>
               <select aria-label="Invite par ${index + 1}" ${player.accountStatus === "named" ? "disabled" : ""} onchange="updatePlayerSetup(${index}, 'invitedBy', this.value); render();">
@@ -2306,7 +2436,9 @@ function renderWizardStep(step) {
       <h2>${t("coursesTitle")}</h2>
       <p>Tapez le nom du golf. L'API doit recuperer le parcours, les tees, le slope/rating et la carte de score.</p>
       <button class="button primary setup-start" onclick="requestLocationCourses()">${icon("flag")}${t("useLocation")}</button>
-      <div class="empty-note">${t("locationHelp")} ${state.locationPermission === "granted" ? "Autorisation accordee - propositions proches affichees." : ""}</div>
+      <div class="empty-note location-status ${state.locationPermission || ""}">
+        ${state.courseApiStatus[0] || t("locationHelp")}
+      </div>
       <div class="round-course-list">
         ${renderRoundCoursePickers()}
       </div>
@@ -3163,6 +3295,11 @@ function render() {
       ${renderWizard()}
     </div>
   `;
+}
+
+if (typeof window !== "undefined") {
+  window.requestLocationCourses = requestLocationCourses;
+  window.loadNearbyGolfApiResults = loadNearbyGolfApiResults;
 }
 
 if (typeof document !== "undefined") {

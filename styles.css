@@ -2182,6 +2182,30 @@ button {
   background: #fbfcfa;
 }
 
+.location-status {
+  margin-top: 12px;
+  border-style: solid;
+  font-weight: 800;
+}
+
+.location-status.pending {
+  border-color: #e6c275;
+  color: #8a5d05;
+  background: #fff8e8;
+}
+
+.location-status.granted {
+  border-color: #94cfa5;
+  color: #17683c;
+  background: #f0fbf3;
+}
+
+.location-status.denied {
+  border-color: #e0a7a2;
+  color: #8a241c;
+  background: #fff2f0;
+}
+
 .compact-hint {
   margin: 10px 0;
   padding: 10px 12px;
